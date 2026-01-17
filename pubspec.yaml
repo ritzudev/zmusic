@@ -1,0 +1,50 @@
+name: zmusic
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  alphabet_list_view: ^1.2.0
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.0.3
+  go_router: ^17.0.1
+  riverpod_annotation: ^3.0.3
+  shared_preferences: ^2.5.4
+  file_picker: ^8.1.4
+  flutter_audio_tagger: ^1.1.1
+  permission_handler: ^11.3.1
+  path_provider: ^2.1.5
+  just_audio: ^0.9.42
+  on_audio_query_pluse: ^3.0.6
+  audio_service: ^0.18.15
+  rxdart: ^0.28.0
+  youtube_explode_dart: ^3.0.5
+  http: ^1.2.2
+  dio: ^5.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  riverpod_generator: ^3.0.3
+  build_runner: ^2.7.1
+  riverpod_lint: ^3.0.3
+  custom_lint: ^0.8.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/
+    - assets/zmusic.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/zmusic.png"
+
