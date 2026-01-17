@@ -1,6 +1,4 @@
 import 'dart:io';
-import 'package:flutter_audio_tagger/flutter_audio_tagger.dart';
-import 'package:flutter_audio_tagger/tag.dart';
 import 'package:http/http.dart' as http;
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -201,26 +199,15 @@ class YouTubeDownload extends _$YouTubeDownload {
       await fileStream.flush();
       await fileStream.close();
 
-      // 6. Incrustar metadatos
+      // Metadatos deshabilitados temporalmente para pruebas
+      /*
       try {
-        final tagger = FlutterAudioTagger();
-        final tag = Tag(
-          artist: artist,
-          title: title,
-          album: "YouTube Download",
-        );
-
-        await tagger.editTags(tag, file.path);
-
-        // Intentar incrustar la carátula si existe
         final thumbFile = File('${directory.path}/$fileName.jpg');
-        if (await thumbFile.exists()) {
-          final artworkBytes = await thumbFile.readAsBytes();
-          await tagger.setArtWork(artworkBytes, file.path);
-        }
+        // ... (lógica de metadatos)
       } catch (e) {
         print('YT_DEBUG: Error al incrustar metadatos: $e');
       }
+      */
 
       // Notificar MediaStore
       try {

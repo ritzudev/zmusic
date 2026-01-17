@@ -1,432 +1,195 @@
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_audio_tagger/flutter_audio_tagger.dart';
-import 'package:flutter_audio_tagger/tag.dart';
+import 'package:audiotags/audiotags.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:on_audio_query_pluse/on_audio_query.dart';
 
-class TaggerTestScreen extends StatefulWidget {
-  const TaggerTestScreen({super.key});
-
-  @override
-  State<TaggerTestScreen> createState() => _TaggerTestScreenState();
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const TaggerTestApp());
 }
 
-class _TaggerTestScreenState extends State<TaggerTestScreen> {
-  Tag? tag;
-  String? currentFilePath;
-  FlutterAudioTagger flutterAudioTagger = FlutterAudioTagger();
-
-  // Text controllers for editing
-  final TextEditingController _artistController = TextEditingController();
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _albumController = TextEditingController();
-  final TextEditingController _yearController = TextEditingController();
-  final TextEditingController _genreController = TextEditingController();
-  final TextEditingController _languageController = TextEditingController();
-  final TextEditingController _composerController = TextEditingController();
-  final TextEditingController _countryController = TextEditingController();
-  final TextEditingController _qualityController = TextEditingController();
-  final TextEditingController _lyricsController = TextEditingController();
-
-  bool _isEditing = false;
+class TaggerTestApp extends StatefulWidget {
+  const TaggerTestApp({super.key});
 
   @override
-  void dispose() {
-    _artistController.dispose();
-    _titleController.dispose();
-    _albumController.dispose();
-    _yearController.dispose();
-    _genreController.dispose();
-    _languageController.dispose();
-    _composerController.dispose();
-    _countryController.dispose();
-    _qualityController.dispose();
-    _lyricsController.dispose();
-    super.dispose();
+  State<TaggerTestApp> createState() => _TaggerTestAppState();
+}
+
+class _TaggerTestAppState extends State<TaggerTestApp> {
+  String path = "";
+  String info = "No hay información. Selecciona un archivo y dale a 'Read'.";
+
+  @override
+  void initState() {
+    super.initState();
   }
 
-  void _populateControllers() {
-    _artistController.text = tag?.artist ?? '';
-    _titleController.text = tag?.title ?? '';
-    _albumController.text = tag?.album ?? '';
-    _yearController.text = tag?.year ?? '';
-    _genreController.text = tag?.genre ?? '';
-    _languageController.text = tag?.language ?? '';
-    _composerController.text = tag?.composer ?? '';
-    _countryController.text = tag?.country ?? '';
-    _qualityController.text = tag?.quality ?? '';
-    _lyricsController.text = tag?.lyrics ?? '';
-  }
-
-  Future<void> _saveChanges() async {
-    if (currentFilePath == null) return;
-
-    try {
-      final updatedTag = Tag(
-        artist: _artistController.text.isEmpty ? null : _artistController.text,
-        title: _titleController.text.isEmpty ? null : _titleController.text,
-        album: _albumController.text.isEmpty ? null : _albumController.text,
-        year: _yearController.text.isEmpty ? null : _yearController.text,
-        genre: _genreController.text.isEmpty ? null : _genreController.text,
-        language: _languageController.text.isEmpty
-            ? null
-            : _languageController.text,
-        composer: _composerController.text.isEmpty
-            ? null
-            : _composerController.text,
-        country: _countryController.text.isEmpty
-            ? null
-            : _countryController.text,
-        quality: _qualityController.text.isEmpty
-            ? null
-            : _qualityController.text,
-        lyrics: _lyricsController.text.isEmpty ? null : _lyricsController.text,
-        artwork: tag?.artwork,
-      );
-
-      // Save the changes
-      await flutterAudioTagger.editTags(updatedTag, currentFilePath!);
-
-      // Force UI state update BEFORE refreshing tags
-      setState(() {
-        _isEditing = false;
-      });
-
-      // Refresh tags to show updated data
-      tag = await flutterAudioTagger.getAllTags(currentFilePath!);
-      _populateControllers();
-
-      // Update UI again after refreshing
-      setState(() {});
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tags saved successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } on FileSystemException catch (e) {
-      setState(() {
-        _isEditing = false;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('File error: ${e.message}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } on ArgumentError catch (e) {
-      setState(() {
-        _isEditing = false;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Invalid input: ${e.message}'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isEditing = false;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving tags: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _editArtwork() async {
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        type: FileType.image,
-      );
-
-      if (result != null && currentFilePath != null) {
-        File imageFile = File(result.files.single.path!);
-
-        // Check if image file exists
-        if (!await imageFile.exists()) {
-          throw const FileSystemException('Selected image file does not exist');
-        }
-
-        // Check file size (limit to 10MB)
-        int fileSize = await imageFile.length();
-        if (fileSize > 10 * 1024 * 1024) {
-          throw Exception('Image file too large (max 10MB)');
-        }
-
-        Uint8List imageData = await imageFile.readAsBytes();
-
-        await flutterAudioTagger.setArtWork(imageData, currentFilePath!);
-
-        // Refresh tags to get updated artwork
-        tag = await flutterAudioTagger.getAllTags(currentFilePath!);
-        setState(() {});
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Artwork updated successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      }
-    } on FileSystemException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('File error: ${e.message}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating artwork: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+  void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("AudioTagger isolated test"),
-        actions: [
-          if (tag != null)
-            IconButton(
-              icon: Icon(_isEditing ? Icons.close : Icons.edit),
-              onPressed: () {
-                setState(() {
-                  _isEditing = !_isEditing;
-                  if (_isEditing) {
-                    _populateControllers();
-                  }
-                });
-              },
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextButton(
+      appBar: AppBar(title: const Text('AudioTags Example')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                "Archivo: ${path.split('/').last}",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 10,
+                children: [
+                  ElevatedButton(
                     onPressed: () async {
-                      FilePickerResult? result = await FilePicker.platform
-                          .pickFiles(
-                            allowMultiple: false,
-                            type: FileType.custom,
-                            allowedExtensions: [
-                              'mp3',
-                              'ogg',
-                              'flac',
-                              'aiff',
-                              'wav',
-                              'wma',
-                              'dsf',
-                            ],
-                          );
-
-                      if (result != null) {
-                        currentFilePath = result.files.single.path!;
-                        tag = await flutterAudioTagger.getAllTags(
-                          currentFilePath!,
-                        );
-                        _populateControllers();
+                      if (Platform.isAndroid || Platform.isIOS) {
+                        await Permission.storage.request();
+                        // También audio para Android 13+
+                        await Permission.audio.request();
+                      }
+                      FilePickerResult? r = await FilePicker.platform.pickFiles(
+                        type: FileType.audio,
+                      );
+                      if (r != null) {
                         setState(() {
-                          _isEditing = false;
+                          path = r.files.single.path!;
+                          info =
+                              "Archivo seleccionado. Dale a 'Read' para ver etiquetas.";
                         });
                       }
                     },
-                    child: const Text("Pick Music"),
+                    child: const Text("1. Open"),
                   ),
-                ),
-                if (_isEditing) ...[
-                  const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: _saveChanges,
-                    child: const Text("Save"),
+                    onPressed: () async {
+                      if (path.isEmpty) {
+                        _showSnackBar(
+                          "Primero selecciona un archivo",
+                          Colors.orange,
+                        );
+                        return;
+                      }
+                      try {
+                        final now = DateTime.now();
+                        final timestamp =
+                            "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
+
+                        _showSnackBar(
+                          "Escribiendo: Test $timestamp...",
+                          Colors.blue,
+                        );
+                        Tag tag = Tag(
+                          title: "ZMusic Test $timestamp",
+                          trackArtist: "ZMusic Artist",
+                          album: "ZMusic Album",
+                          genre: "Test Genre",
+                          year: 2024,
+                          pictures: [],
+                        );
+                        await AudioTags.write(path, tag);
+
+                        // Notificar al sistema para que se actualice la biblioteca
+                        final audioQuery = OnAudioQuery();
+                        await audioQuery.scanMedia(path);
+
+                        _showSnackBar(
+                          "¡Escritura completada! ($timestamp)",
+                          Colors.green,
+                        );
+
+                        // Refrescar info automáticamente
+                        Tag? updatedTag = await AudioTags.read(path);
+                        setState(() {
+                          info =
+                              """
+PROPIEDADES ACTUALIZADAS ($timestamp):
+Título: ${updatedTag?.title}
+Artista: ${updatedTag?.trackArtist}
+Álbum: ${updatedTag?.album}
+Género: ${updatedTag?.genre}
+Año: ${updatedTag?.year}
+""";
+                        });
+                      } catch (e) {
+                        _showSnackBar("Error al escribir: $e", Colors.red);
+                      }
+                    },
+                    child: const Text("2. Write Test (Dynamic)"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (path.isEmpty) {
+                        _showSnackBar(
+                          "Primero selecciona un archivo",
+                          Colors.orange,
+                        );
+                        return;
+                      }
+                      try {
+                        Tag? tag = await AudioTags.read(path);
+                        setState(() {
+                          info =
+                              """
+PROPIEDADES LEÍDAS:
+Título: ${tag?.title}
+Artista: ${tag?.trackArtist}
+Álbum: ${tag?.album}
+Género: ${tag?.genre}
+Año: ${tag?.year}
+Duración: ${tag?.duration}s
+Imágenes: ${tag?.pictures.length}
+""";
+                        });
+                        _showSnackBar("Lectura completada", Colors.green);
+                      } catch (e) {
+                        _showSnackBar("Error al leer: $e", Colors.red);
+                        setState(() {
+                          info = "Error al leer: $e";
+                        });
+                      }
+                    },
+                    child: const Text("3. Read Info"),
                   ),
                 ],
-              ],
-            ),
-          ),
-          Expanded(
-            child: tag != null
-                ? _buildTagCards()
-                : const Center(child: Text("No music selected")),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTagCards() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildArtworkCard(),
-          _buildEditableInfoCard("Artist", _artistController),
-          _buildEditableInfoCard("Title", _titleController),
-          _buildEditableInfoCard("Album", _albumController),
-          _buildEditableInfoCard("Year", _yearController),
-          _buildEditableInfoCard("Genre", _genreController),
-          _buildEditableInfoCard("Language", _languageController),
-          _buildEditableInfoCard("Composer", _composerController),
-          _buildEditableInfoCard("Country", _countryController),
-          _buildEditableInfoCard("Quality", _qualityController),
-          _buildEditableLyricsCard(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildArtworkCard() {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Artwork",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                if (_isEditing)
-                  TextButton.icon(
-                    onPressed: _editArtwork,
-                    icon: const Icon(Icons.edit),
-                    label: const Text("Edit"),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Container(
-                width: 200,
-                height: 200,
+              ),
+              const SizedBox(height: 30),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.grey[300],
-                  image: tag?.artwork != null
-                      ? DecorationImage(
-                          image: MemoryImage(tag!.artwork!),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: tag?.artwork == null
-                    ? Icon(Icons.music_note, size: 80, color: Colors.grey[600])
-                    : null,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEditableInfoCard(
-    String title,
-    TextEditingController controller,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: _isEditing
-            ? TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: "Enter $title",
-                  border: const UnderlineInputBorder(),
-                ),
-              )
-            : Text(
-                controller.text.isEmpty ? "Not set" : controller.text,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: controller.text.isEmpty ? Colors.grey : null,
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildEditableLyricsCard() {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Lyrics",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            _isEditing
-                ? TextField(
-                    controller: _lyricsController,
-                    maxLines: 6,
-                    decoration: const InputDecoration(
-                      hintText: "Enter lyrics",
-                      border: OutlineInputBorder(),
-                    ),
-                  )
-                : Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _lyricsController.text.isEmpty
-                          ? "No lyrics available"
-                          : _lyricsController.text,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _lyricsController.text.isEmpty
-                            ? Colors.grey
-                            : null,
-                      ),
-                    ),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
-          ],
+                ),
+                child: Text(
+                  info,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

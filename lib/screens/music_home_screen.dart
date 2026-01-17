@@ -39,6 +39,10 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
 
   Future<void> _checkCacheAndScan() async {
     final notifier = ref.read(musicLibraryProvider.notifier);
+
+    // Asegurar que tenemos permisos antes de intentar procesar música o artworks
+    await notifier.requestStoragePermission();
+
     final hasCached = await notifier.hasCachedData();
 
     if (!hasCached) {
@@ -210,7 +214,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                       ),
                       const SizedBox(width: 8),
                       // Botón Debug (Metadatos)
-                      Container(
+                      /* Container(
                         height: 50,
                         width: 50,
                         decoration: BoxDecoration(
@@ -227,7 +231,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 8), */
                     ],
                   ),
                   const SizedBox(height: 24),

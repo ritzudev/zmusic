@@ -2,6 +2,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 
 /// Provider para obtener los bytes de la carátula de forma asíncrona y cachearla.
 /// Esto evita parpadeos al usar Hero y mejora el rendimiento.
@@ -10,14 +12,30 @@ final artworkProvider =
       ref,
       arg,
     ) async {
-      final OnAudioQuery audioQuery = OnAudioQuery();
-      return await audioQuery.queryArtwork(
-        arg.id,
-        arg.type,
-        format: ArtworkFormat.JPEG,
-        size: 600,
-        quality: 85,
-      );
+      try {
+        // En Android 13+, necesitamos permiso de AUDIO. En anteriores, STORAGE.
+        // El plugin on_audio_query_pluse a veces crashea si se llama sin permisos.
+        if (Platform.isAndroid) {
+          final audioStatus = await Permission.audio.status;
+          final storageStatus = await Permission.storage.status;
+
+          if (!audioStatus.isGranted && !storageStatus.isGranted) {
+            return null;
+          }
+        }
+
+        final OnAudioQuery audioQuery = OnAudioQuery();
+        return await audioQuery.queryArtwork(
+          arg.id,
+          arg.type,
+          format: ArtworkFormat.JPEG,
+          size: 600,
+          quality: 85,
+        );
+      } catch (e) {
+        debugPrint("Error al cargar artwork para ${arg.id}: $e");
+        return null;
+      }
     });
 
 class ArtworkWidget extends ConsumerWidget {

@@ -29,7 +29,7 @@ class MainApp extends ConsumerWidget {
         '/now-playing': (context) => const NowPlayingScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/youtube-search': (context) => const YouTubeSearchScreen(),
-        '/tagger-test': (context) => const TaggerTestScreen(),
+        '/tagger-test': (context) => const TaggerTestApp(),
       },
     );
   }
