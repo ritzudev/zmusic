@@ -84,6 +84,45 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
     }
   }
 
+  Future<void> _playRandomSong() async {
+    final filteredSongs = ref.read(filteredSongsProvider);
+
+    if (filteredSongs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No hay canciones disponibles'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Generar un índice aleatorio
+    final randomIndex =
+        (filteredSongs.length * DateTime.now().millisecond / 1000).floor() %
+        filteredSongs.length;
+
+    // Reproducir la canción aleatoria
+    final playerNotifier = ref.read(audioPlayerProvider.notifier);
+    await playerNotifier.setPlaylistAndPlay(
+      filteredSongs,
+      initialIndex: randomIndex,
+    );
+
+    // Mostrar mensaje
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Reproduciendo: ${filteredSongs[randomIndex].title}'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -370,53 +409,68 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _isLoading ? null : _scanMusic,
-        tooltip: 'Refrescar biblioteca',
-        child: const Icon(Icons.refresh),
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Mini player
-          Consumer(
-            builder: (context, ref, child) {
-              final playerState = ref.watch(audioPlayerProvider);
-              if (playerState.currentTrack == null) {
-                return const SizedBox.shrink();
-              }
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) =>
-                          const NowPlayingScreen(),
-                      transitionDuration: const Duration(milliseconds: 500),
-                      reverseTransitionDuration: const Duration(
-                        milliseconds: 500,
-                      ),
-                      transitionsBuilder:
-                          (context, animation, secondaryAnimation, child) {
-                            const curve = Curves.fastOutSlowIn;
-                            final curvedAnimation = CurvedAnimation(
-                              parent: animation,
-                              curve: curve,
-                              reverseCurve: curve,
-                            );
-                            return FadeTransition(
-                              opacity: curvedAnimation,
-                              child: child,
-                            );
-                          },
-                    ),
-                  );
-                },
-                child: const MusicPlayerControls(showMiniPlayer: true),
-              );
-            },
+          FloatingActionButton(
+            heroTag: 'shuffle_button',
+            onPressed: _isLoading ? null : _playRandomSong,
+            tooltip: 'Reproducir música aleatoria',
+            child: const Icon(Icons.shuffle),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: 'refresh_button',
+            onPressed: _isLoading ? null : _scanMusic,
+            tooltip: 'Refrescar biblioteca',
+            child: const Icon(Icons.refresh),
           ),
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Mini player
+            Consumer(
+              builder: (context, ref, child) {
+                final playerState = ref.watch(audioPlayerProvider);
+                if (playerState.currentTrack == null) {
+                  return const SizedBox.shrink();
+                }
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            const NowPlayingScreen(),
+                        transitionDuration: const Duration(milliseconds: 500),
+                        reverseTransitionDuration: const Duration(
+                          milliseconds: 500,
+                        ),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              const curve = Curves.fastOutSlowIn;
+                              final curvedAnimation = CurvedAnimation(
+                                parent: animation,
+                                curve: curve,
+                                reverseCurve: curve,
+                              );
+                              return FadeTransition(
+                                opacity: curvedAnimation,
+                                child: child,
+                              );
+                            },
+                      ),
+                    );
+                  },
+                  child: const MusicPlayerControls(showMiniPlayer: true),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

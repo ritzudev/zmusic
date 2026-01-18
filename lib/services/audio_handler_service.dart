@@ -39,9 +39,10 @@ class MusicAudioHandler extends BaseAudioHandler
     });
 
     // Escuchar cambios en la duración
-    _player.durationStream.listen((duration) {
+    _player.durationStream.listen((duration) async {
       if (duration != null && _currentIndex < _playlist.length) {
         final track = _playlist[_currentIndex];
+        final artUri = await _getArtworkUri(track);
         mediaItem.add(
           MediaItem(
             id: track.id,
@@ -49,11 +50,33 @@ class MusicAudioHandler extends BaseAudioHandler
             artist: track.artist,
             album: track.album ?? 'Álbum Desconocido',
             duration: duration,
-            artUri: track.albumArt != null ? Uri.parse(track.albumArt!) : null,
+            artUri: artUri,
           ),
         );
       }
     });
+  }
+
+  /// Obtener URI del artwork para la notificación
+  Future<Uri?> _getArtworkUri(MusicTrack track) async {
+    try {
+      // Para Android, usamos el content provider URI directamente
+      // Este es el formato estándar que Android usa para artwork de álbumes
+      if (track.albumId != null) {
+        return Uri.parse(
+          'content://media/external/audio/albumart/${track.albumId}',
+        );
+      } else {
+        // Si no hay albumId, intentamos con el songId
+        // Aunque esto puede no funcionar siempre, es mejor que nada
+        return Uri.parse(
+          'content://media/external/audio/media/${track.songId}/albumart',
+        );
+      }
+    } catch (e) {
+      print('Error al obtener artwork para notificación: $e');
+      return null;
+    }
   }
 
   /// Manejar cuando una canción termina
@@ -162,6 +185,7 @@ class MusicAudioHandler extends BaseAudioHandler
     try {
       await _player.setFilePath(track.filePath);
 
+      final artUri = await _getArtworkUri(track);
       mediaItem.add(
         MediaItem(
           id: track.id,
@@ -169,7 +193,7 @@ class MusicAudioHandler extends BaseAudioHandler
           artist: track.artist,
           album: track.album ?? 'Álbum Desconocido',
           duration: track.duration ?? _player.duration,
-          artUri: track.albumArt != null ? Uri.parse(track.albumArt!) : null,
+          artUri: artUri,
         ),
       );
 
