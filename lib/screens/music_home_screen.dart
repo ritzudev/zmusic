@@ -119,6 +119,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
     final selectedCategory = ref.watch(selectedCategoryProvider);
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,7 +202,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                       ),
                       const SizedBox(width: 8),
                       // Botón de descarga de YouTube
-                      Container(
+                      /* Container(
                         height: 50,
                         width: 50,
                         decoration: BoxDecoration(
@@ -238,10 +239,10 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                 : Colors.white,
                           ),
                         ),
-                      ),
+                      ), */
                       const SizedBox(width: 8),
                       // Botón Debug (Metadatos)
-                      /* Container(
+                      Container(
                         height: 50,
                         width: 50,
                         decoration: BoxDecoration(
@@ -258,7 +259,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8), */
+                      const SizedBox(width: 8),
                     ],
                   ),
                   const SizedBox(height: 24),
