@@ -90,10 +90,8 @@ class NowPlayingScreen extends ConsumerWidget {
                       child: Hero(
                         tag: 'album_art_${track.id}',
                         child: ArtworkWidget(
-                          id: track.albumId ?? track.songId,
-                          type: track.albumId != null
-                              ? ArtworkType.ALBUM
-                              : ArtworkType.AUDIO,
+                          id: track.songId,
+                          type: ArtworkType.AUDIO,
                           filePath: track.filePath,
                           width: double.infinity,
                           height: double.infinity,
@@ -315,10 +313,8 @@ class NowPlayingScreen extends ConsumerWidget {
 
                       return ListTile(
                         leading: ArtworkWidget(
-                          id: track.albumId ?? track.songId,
-                          type: track.albumId != null
-                              ? ArtworkType.ALBUM
-                              : ArtworkType.AUDIO,
+                          id: track.songId,
+                          type: ArtworkType.AUDIO,
                           filePath: track.filePath,
                           width: 48,
                           height: 48,
@@ -350,6 +346,7 @@ class NowPlayingScreen extends ConsumerWidget {
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         onTap: () {
+                          FocusScope.of(context).unfocus();
                           playerNotifier.playTrack(index);
                           Navigator.pop(context);
                         },

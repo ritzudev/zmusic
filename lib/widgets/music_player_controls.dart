@@ -70,12 +70,9 @@ class MusicPlayerControls extends ConsumerWidget {
                   Hero(
                     tag: 'album_art_${state.currentTrack!.id}',
                     child: ArtworkWidget(
-                      id:
-                          state.currentTrack!.albumId ??
-                          state.currentTrack!.songId,
-                      type: state.currentTrack!.albumId != null
-                          ? ArtworkType.ALBUM
-                          : ArtworkType.AUDIO,
+                      id: state.currentTrack!.songId,
+                      type: ArtworkType.AUDIO,
+                      filePath: state.currentTrack!.filePath,
                       width: 50,
                       height: 50,
                       borderRadius: BorderRadius.circular(8),

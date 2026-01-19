@@ -196,8 +196,8 @@ class AudioPlayer extends _$AudioPlayer {
     // Disparar la carga del artwork para que esté en memoria cuando se necesite
     ref.read(
       artworkProvider((
-        id: nextTrack.albumId ?? nextTrack.songId,
-        type: nextTrack.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
+        id: nextTrack.songId,
+        type: ArtworkType.AUDIO,
         filePath: nextTrack.filePath,
       )).future,
     );

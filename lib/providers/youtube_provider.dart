@@ -166,10 +166,11 @@ class YouTubeDownload extends _$YouTubeDownload {
       print('YT_DEBUG: Permisos verificados');
 
       // 2. Verificar si podemos leer detalles del video primero
+      Video? fullVideo;
       try {
         print('YT_DEBUG: Verificando detalles del video...');
-        final v = await _yt.videos.get(video.id);
-        print('YT_DEBUG: Video verificado: "${v.title}"');
+        fullVideo = await _yt.videos.get(video.id);
+        print('YT_DEBUG: Video verificado: "${fullVideo.title}"');
       } catch (e) {
         print('YT_DEBUG: Error al obtener detalles básicos: $e');
         throw Exception('YouTube no permite leer este video: $e');
@@ -235,17 +236,30 @@ class YouTubeDownload extends _$YouTubeDownload {
       final file = File('${directory.path}/$fileName.$extension');
       print('YT_DEBUG: Archivo destino: ${file.path}');
 
-      // Descargar miniatura
+      // Descargar miniatura (Mejor resolución posible)
       try {
-        print('YT_DEBUG: Descargando miniatura...');
-        final response = await http.get(Uri.parse(video.thumbnailUrl));
+        print('YT_DEBUG: Descargando miniatura de alta resolución...');
+        // Priorizar: maxResUrl -> highResUrl -> standardResUrl -> thumbnailUrl
+        String thumbUrl = video.thumbnailUrl;
+        if (fullVideo.thumbnails.maxResUrl.isNotEmpty) {
+          thumbUrl = fullVideo.thumbnails.maxResUrl;
+        } else if (fullVideo.thumbnails.highResUrl.isNotEmpty) {
+          thumbUrl = fullVideo.thumbnails.highResUrl;
+        } else if (fullVideo.thumbnails.standardResUrl.isNotEmpty) {
+          thumbUrl = fullVideo.thumbnails.standardResUrl;
+        }
+
+        print('YT_DEBUG: Usando URL de miniatura: $thumbUrl');
+        final response = await http.get(Uri.parse(thumbUrl));
         if (response.statusCode == 200) {
           final thumbnailFile = File('${directory.path}/$fileName.jpg');
           await thumbnailFile.writeAsBytes(response.bodyBytes);
-          print('YT_DEBUG: Miniatura guardada temporalmente');
+          print(
+            'YT_DEBUG: Miniatura (${response.bodyBytes.length} bytes) guardada temporalmente',
+          );
         }
       } catch (e) {
-        print('YT_DEBUG: Error miniatura: $e');
+        print('YT_DEBUG: Error al descargar miniatura: $e');
       }
 
       // 5. Descargar

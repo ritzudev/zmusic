@@ -217,7 +217,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           color: theme.colorScheme.onPrimary,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      /* const SizedBox(width: 8),
                       Container(
                         height: 50,
                         width: 50,
@@ -238,7 +238,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                 : Colors.white,
                           ),
                         ),
-                      ),
+                      ), */
                       const SizedBox(width: 8),
                       // Botón Debug (Metadatos)
                       Container(
@@ -529,6 +529,9 @@ class _MusicCard extends ConsumerWidget {
 
     return InkWell(
       onTap: () async {
+        // Cerrar el teclado si está abierto
+        FocusScope.of(context).unfocus();
+
         final List<MusicTrack> playlist =
             filteredPlaylist ?? ref.read(musicLibraryProvider);
         final playerNotifier = ref.read(audioPlayerProvider.notifier);
@@ -553,10 +556,8 @@ class _MusicCard extends ConsumerWidget {
               alignment: Alignment.center,
               children: [
                 ArtworkWidget(
-                  id: song.albumId ?? song.songId,
-                  type: song.albumId != null
-                      ? ArtworkType.ALBUM
-                      : ArtworkType.AUDIO,
+                  id: song.songId,
+                  type: ArtworkType.AUDIO,
                   filePath: song.filePath,
                   width: 55,
                   height: 55,

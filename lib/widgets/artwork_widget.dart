@@ -103,6 +103,7 @@ class ArtworkWidget extends ConsumerWidget {
               height: height,
               fit: BoxFit.cover,
               gaplessPlayback: true,
+              filterQuality: FilterQuality.medium,
             ),
           );
         }
