@@ -3,37 +3,63 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'dart:io';
 
 /// Provider para obtener los bytes de la carátula de forma asíncrona y cachearla.
-/// Esto evita parpadeos al usar Hero y mejora el rendimiento.
+/// Ahora incluye un FALLBACK para leer directamente del archivo si MediaStore falla.
 final artworkProvider =
-    FutureProvider.family<Uint8List?, ({int id, ArtworkType type})>((
-      ref,
-      arg,
-    ) async {
+    FutureProvider.family<
+      Uint8List?,
+      ({int id, ArtworkType type, String? filePath})
+    >((ref, arg) async {
       try {
-        // En Android 13+, necesitamos permiso de AUDIO. En anteriores, STORAGE.
-        // El plugin on_audio_query_pluse a veces crashea si se llama sin permisos.
+        debugPrint(
+          'YT_DEBUG: Querying artwork for ID: ${arg.id}, Type: ${arg.type}',
+        );
+
+        // 1. Intentar con on_audio_query
         if (Platform.isAndroid) {
           final audioStatus = await Permission.audio.status;
           final storageStatus = await Permission.storage.status;
 
-          if (!audioStatus.isGranted && !storageStatus.isGranted) {
-            return null;
+          if (audioStatus.isGranted || storageStatus.isGranted) {
+            final OnAudioQuery audioQuery = OnAudioQuery();
+            final bytes = await audioQuery.queryArtwork(
+              arg.id,
+              arg.type,
+              format: ArtworkFormat.JPEG,
+              size: 600,
+              quality: 85,
+            );
+
+            if (bytes != null && bytes.isNotEmpty) {
+              debugPrint(
+                'YT_DEBUG: Artwork Found via MediaStore for ${arg.id}',
+              );
+              return bytes;
+            }
           }
         }
 
-        final OnAudioQuery audioQuery = OnAudioQuery();
-        return await audioQuery.queryArtwork(
-          arg.id,
-          arg.type,
-          format: ArtworkFormat.JPEG,
-          size: 600,
-          quality: 85,
-        );
+        // 2. FALLBACK: Leer directamente del archivo
+        if (arg.filePath != null && await File(arg.filePath!).exists()) {
+          debugPrint('YT_DEBUG: Fallback lectura directa: ${arg.filePath}');
+          final file = File(arg.filePath!);
+          final metadata = readMetadata(file, getImage: true);
+
+          if (metadata.pictures.isNotEmpty) {
+            final bytes = metadata.pictures.first.bytes;
+            debugPrint(
+              'YT_DEBUG: Artwork Found via Direct Reading (${bytes.length} bytes)',
+            );
+            return bytes;
+          }
+        }
+
+        return null;
       } catch (e) {
-        debugPrint("Error al cargar artwork para ${arg.id}: $e");
+        debugPrint("YT_DEBUG: Error artwork fallback: $e");
         return null;
       }
     });
@@ -41,6 +67,7 @@ final artworkProvider =
 class ArtworkWidget extends ConsumerWidget {
   final int id;
   final ArtworkType type;
+  final String? filePath;
   final double width;
   final double height;
   final BorderRadius? borderRadius;
@@ -51,6 +78,7 @@ class ArtworkWidget extends ConsumerWidget {
     super.key,
     required this.id,
     required this.type,
+    this.filePath,
     this.width = 50,
     this.height = 50,
     this.borderRadius,
@@ -60,7 +88,9 @@ class ArtworkWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final artworkAsync = ref.watch(artworkProvider((id: id, type: type)));
+    final artworkAsync = ref.watch(
+      artworkProvider((id: id, type: type, filePath: filePath)),
+    );
 
     return artworkAsync.when(
       data: (bytes) {
@@ -72,7 +102,6 @@ class ArtworkWidget extends ConsumerWidget {
               width: width,
               height: height,
               fit: BoxFit.cover,
-              // Esto es clave para evitar parpadeos durante la transición Hero
               gaplessPlayback: true,
             ),
           );
@@ -97,7 +126,6 @@ class ArtworkWidget extends ConsumerWidget {
   }
 
   Widget _buildLoadingArtwork(BuildContext context) {
-    // Intentamos mantener el tamaño consistente incluso mientras carga
     return Container(
       width: width,
       height: height,

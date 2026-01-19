@@ -198,6 +198,7 @@ class AudioPlayer extends _$AudioPlayer {
       artworkProvider((
         id: nextTrack.albumId ?? nextTrack.songId,
         type: nextTrack.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
+        filePath: nextTrack.filePath,
       )).future,
     );
   }

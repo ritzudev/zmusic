@@ -202,7 +202,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                       ),
                       const SizedBox(width: 8),
                       // Botón de descarga de YouTube
-                      /* Container(
+                      Container(
                         height: 50,
                         width: 50,
                         decoration: BoxDecoration(
@@ -218,7 +218,6 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Botón de cambio de tema
                       Container(
                         height: 50,
                         width: 50,
@@ -239,7 +238,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                 : Colors.white,
                           ),
                         ),
-                      ), */
+                      ),
                       const SizedBox(width: 8),
                       // Botón Debug (Metadatos)
                       Container(
@@ -558,6 +557,7 @@ class _MusicCard extends ConsumerWidget {
                   type: song.albumId != null
                       ? ArtworkType.ALBUM
                       : ArtworkType.AUDIO,
+                  filePath: song.filePath,
                   width: 55,
                   height: 55,
                   borderRadius: BorderRadius.circular(12),

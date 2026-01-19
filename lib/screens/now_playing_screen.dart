@@ -15,7 +15,6 @@ class NowPlayingScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Seleccionamos solo el track actual para evitar reconstrucciones innecesarias
-    // cuando cambia la posición o el progreso del reproductor.
     final track = ref.watch(audioPlayerProvider.select((s) => s.currentTrack));
     final theme = Theme.of(context);
 
@@ -27,6 +26,7 @@ class NowPlayingScreen extends ConsumerWidget {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -40,69 +40,75 @@ class NowPlayingScreen extends ConsumerWidget {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              // AppBar personalizado
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.keyboard_arrow_down, size: 32),
-                      onPressed: () => Navigator.pop(context),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 40),
+              child: Column(
+                children: [
+                  // AppBar personalizado
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.keyboard_arrow_down, size: 32),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        Text(
+                          'Reproduciendo',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: () {},
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Reproduciendo',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.more_vert),
-                      onPressed: () {},
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 48),
-                child: Container(
-                  width: double.infinity,
-                  height: MediaQuery.of(context).size.width - 116,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.3),
-                        blurRadius: 32,
-                        spreadRadius: 8,
-                        offset: const Offset(0, 16),
-                      ),
-                    ],
                   ),
-                  child: Hero(
-                    tag: 'album_art_${track.id}',
-                    child: ArtworkWidget(
-                      id: track.albumId ?? track.songId,
-                      type: track.albumId != null
-                          ? ArtworkType.ALBUM
-                          : ArtworkType.AUDIO,
+                  const SizedBox(height: 16),
+
+                  // Arte del álbum
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                    child: Container(
                       width: double.infinity,
-                      height: double.infinity,
-                      borderRadius: BorderRadius.circular(24),
-                      nullIconSize: 120,
+                      height: MediaQuery.of(context).size.width - 116,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.colorScheme.primary.withOpacity(0.3),
+                            blurRadius: 32,
+                            spreadRadius: 8,
+                            offset: const Offset(0, 16),
+                          ),
+                        ],
+                      ),
+                      child: Hero(
+                        tag: 'album_art_${track.id}',
+                        child: ArtworkWidget(
+                          id: track.albumId ?? track.songId,
+                          type: track.albumId != null
+                              ? ArtworkType.ALBUM
+                              : ArtworkType.AUDIO,
+                          filePath: track.filePath,
+                          width: double.infinity,
+                          height: double.infinity,
+                          borderRadius: BorderRadius.circular(24),
+                          nullIconSize: 120,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 48),
-              // Información de la canción
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Column(
-                  children: [
-                    Row(
+                  const SizedBox(height: 48),
+
+                  // Información de la canción
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
@@ -131,7 +137,6 @@ class NowPlayingScreen extends ConsumerWidget {
                         IconButton(
                           icon: Consumer(
                             builder: (context, ref, _) {
-                              // Buscamos la canción actualizada en la biblioteca para obtener el estado real de favorito
                               final isFavorite = ref.watch(
                                 musicLibraryProvider.select(
                                   (library) =>
@@ -159,73 +164,82 @@ class NowPlayingScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              // Controles de reproducción
-              const MusicPlayerControls(),
-              const SizedBox(height: 24),
-              // Controles adicionales
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Consumer(
-                      builder: (context, ref, _) {
-                        final isShuffleEnabled = ref.watch(
-                          audioPlayerProvider.select((s) => s.isShuffleEnabled),
-                        );
+                  ),
 
-                        return IconButton(
-                          icon: Icon(
-                            Icons.shuffle,
-                            size: 26,
-                            color: isShuffleEnabled
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurface.withOpacity(0.6),
-                          ),
-                          onPressed: () {
-                            ref
-                                .read(audioPlayerProvider.notifier)
-                                .toggleShuffle();
-                          },
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.playlist_play, size: 30),
-                      onPressed: () => _showPlaylist(context, ref),
-                    ),
-                    Consumer(
-                      builder: (context, ref, _) {
-                        final repeatMode = ref.watch(
-                          audioPlayerProvider.select((s) => s.repeatMode),
-                        );
-                        final isActive = repeatMode != RepeatMode.none;
+                  const SizedBox(height: 32),
 
-                        return IconButton(
-                          icon: Icon(
-                            repeatMode.icon,
-                            size: 26,
-                            color: isActive
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurface.withOpacity(0.6),
-                          ),
-                          onPressed: () {
-                            ref
-                                .read(audioPlayerProvider.notifier)
-                                .toggleRepeatMode();
+                  // Controles de reproducción
+                  const MusicPlayerControls(),
+
+                  const SizedBox(height: 24),
+
+                  // Controles adicionales (Shuffle, Playlist, Repeat)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final isShuffleEnabled = ref.watch(
+                              audioPlayerProvider.select(
+                                (s) => s.isShuffleEnabled,
+                              ),
+                            );
+
+                            return IconButton(
+                              icon: Icon(
+                                Icons.shuffle,
+                                size: 26,
+                                color: isShuffleEnabled
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurface.withOpacity(
+                                        0.6,
+                                      ),
+                              ),
+                              onPressed: () {
+                                ref
+                                    .read(audioPlayerProvider.notifier)
+                                    .toggleShuffle();
+                              },
+                            );
                           },
-                        );
-                      },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.playlist_play, size: 30),
+                          onPressed: () => _showPlaylist(context, ref),
+                        ),
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final repeatMode = ref.watch(
+                              audioPlayerProvider.select((s) => s.repeatMode),
+                            );
+                            final isActive = repeatMode != RepeatMode.none;
+
+                            return IconButton(
+                              icon: Icon(
+                                repeatMode.icon,
+                                size: 26,
+                                color: isActive
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurface.withOpacity(
+                                        0.6,
+                                      ),
+                              ),
+                              onPressed: () {
+                                ref
+                                    .read(audioPlayerProvider.notifier)
+                                    .toggleRepeatMode();
+                              },
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 32),
-            ],
+            ),
           ),
         ),
       ),
@@ -305,6 +319,7 @@ class NowPlayingScreen extends ConsumerWidget {
                           type: track.albumId != null
                               ? ArtworkType.ALBUM
                               : ArtworkType.AUDIO,
+                          filePath: track.filePath,
                           width: 48,
                           height: 48,
                           borderRadius: BorderRadius.circular(8),
