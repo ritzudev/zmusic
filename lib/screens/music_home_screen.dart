@@ -72,15 +72,9 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result)));
     }
   }
 
@@ -89,13 +83,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
 
     if (filteredSongs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('No hay canciones disponibles'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
+        const SnackBar(content: Text('No hay canciones disponibles')),
       );
       return;
     }
@@ -113,14 +101,14 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
     );
 
     // Mostrar mensaje
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Reproduciendo: ${filteredSongs[randomIndex].title}'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Reproduciendo: ${filteredSongs[randomIndex].title}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:zmusic/models/song_model.dart';
 import 'package:zmusic/services/audio_handler_service.dart';
@@ -23,6 +24,7 @@ Future<MusicAudioHandler> audioHandler(Ref ref) async {
       androidNotificationOngoing: true,
       androidShowNotificationBadge: true,
       androidNotificationIcon: 'mipmap/ic_launcher',
+      notificationColor: const Color.fromARGB(255, 30, 154, 195),
       androidStopForegroundOnPause: true,
       androidNotificationClickStartsActivity: true,
       preloadArtwork: true,

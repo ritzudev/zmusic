@@ -1,5 +1,9 @@
+import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:zmusic/models/song_model.dart';
 
 /// Servicio de audio que maneja la reproducción en segundo plano
@@ -7,6 +11,7 @@ import 'package:zmusic/models/song_model.dart';
 class MusicAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   final AudioPlayer _player = AudioPlayer();
+  final OnAudioQuery _audioQuery = OnAudioQuery();
 
   // Lista de reproducción actual
   List<MusicTrack> _playlist = [];
@@ -14,9 +19,29 @@ class MusicAudioHandler extends BaseAudioHandler
   int _currentIndex = 0;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   bool _isShuffleEnabled = false;
+  String? _placeholderPath;
 
   MusicAudioHandler() {
     _init();
+    _preparePlaceholder();
+  }
+
+  Future<void> _preparePlaceholder() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final path = '${directory.path}/notification_placeholder.png';
+      final file = File(path);
+
+      if (!await file.exists()) {
+        final byteData = await rootBundle.load(
+          'assets/notification_placeholder.png',
+        );
+        await file.writeAsBytes(byteData.buffer.asUint8List());
+      }
+      _placeholderPath = path;
+    } catch (e) {
+      print('Error al preparar placeholder de notificación: $e');
+    }
   }
 
   void _init() {
@@ -60,21 +85,40 @@ class MusicAudioHandler extends BaseAudioHandler
   /// Obtener URI del artwork para la notificación
   Future<Uri?> _getArtworkUri(MusicTrack track) async {
     try {
-      // Para Android, usamos el content provider URI directamente
-      // Este es el formato estándar que Android usa para artwork de álbumes
-      if (track.albumId != null) {
-        return Uri.parse(
-          'content://media/external/audio/albumart/${track.albumId}',
-        );
-      } else {
-        // Si no hay albumId, intentamos con el songId
-        // Aunque esto puede no funcionar siempre, es mejor que nada
-        return Uri.parse(
-          'content://media/external/audio/media/${track.songId}/albumart',
-        );
+      // Verificar si realmente existe el artwork en el sistema
+      final artworkBytes = await _audioQuery.queryArtwork(
+        track.albumId ?? track.songId,
+        track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
+        format: ArtworkFormat.JPEG,
+        size: 200, // Tamaño pequeño solo para verificación rápida
+      );
+
+      // Si existe artwork (bytes no nulos y no vacíos)
+      if (artworkBytes != null && artworkBytes.isNotEmpty) {
+        if (track.albumId != null) {
+          return Uri.parse(
+            'content://media/external/audio/albumart/${track.albumId}',
+          );
+        } else {
+          // Fallback al songId si no hay albumId pero el sistema encontró algo
+          return Uri.parse(
+            'content://media/external/audio/media/${track.songId}/albumart',
+          );
+        }
       }
+
+      // Si no existe artwork real, usar el placeholder morado
+      if (_placeholderPath != null) {
+        return Uri.file(_placeholderPath!);
+      }
+
+      return null;
     } catch (e) {
-      print('Error al obtener artwork para notificación: $e');
+      print('Error al verificar artwork para notificación: $e');
+      // Fallback al placeholder en caso de error
+      if (_placeholderPath != null) {
+        return Uri.file(_placeholderPath!);
+      }
       return null;
     }
   }
