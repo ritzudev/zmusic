@@ -99,16 +99,6 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
       filteredSongs,
       initialIndex: randomIndex,
     );
-
-    // Mostrar mensaje
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Reproduciendo: ${filteredSongs[randomIndex].title}'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
   }
 
   @override

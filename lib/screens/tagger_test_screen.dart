@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_audio_tagger/flutter_audio_tagger.dart';
+import 'package:flutter_audio_tagger/tag.dart';
+import 'package:audio_metadata_reader/audio_metadata_reader.dart' as amr;
+import 'dart:typed_data';
 
 class TaggerTestApp extends StatefulWidget {
   const TaggerTestApp({super.key});
@@ -11,7 +14,7 @@ class TaggerTestApp extends StatefulWidget {
 }
 
 class _TaggerTestAppState extends State<TaggerTestApp> {
-  AudioMetadata? _metadata;
+  Tag? _tag;
   String? _currentFilePath;
   bool _isEditing = false;
 
@@ -33,15 +36,15 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
   }
 
   void _populateControllers() {
-    if (_metadata == null) return;
+    if (_tag == null) return;
     debugPrint(
-      'YT_DEBUG: Poblado controladores con Artist: ${_metadata!.artist}, Title: ${_metadata!.title}',
+      'YT_DEBUG: Poblado controladores con Artist: ${_tag!.artist}, Title: ${_tag!.title}',
     );
-    _artistController.text = _metadata!.artist ?? '';
-    _titleController.text = _metadata!.title ?? '';
-    _albumController.text = _metadata!.album ?? '';
-    _yearController.text = _metadata!.year?.toString() ?? '';
-    _genreController.text = _metadata!.genres.join(', ');
+    _artistController.text = _tag!.artist ?? '';
+    _titleController.text = _tag!.title ?? '';
+    _albumController.text = _tag!.album ?? '';
+    _yearController.text = _tag!.year ?? '';
+    _genreController.text = _tag!.genre ?? '';
   }
 
   Future<void> _pickAndLoadMusic() async {
@@ -53,29 +56,49 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
     if (result != null && result.files.single.path != null) {
       final path = result.files.single.path!;
       try {
-        final file = File(path);
-        final metadata = readMetadata(file, getImage: true);
+        final tagger = FlutterAudioTagger();
+        Tag? tag;
 
-        debugPrint(
-          'YT_DEBUG: Metadatos cargados. Imágenes encontradas: ${metadata.pictures.length}',
-        );
-        for (var i = 0; i < metadata.pictures.length; i++) {
-          final pic = metadata.pictures[i];
+        try {
+          tag = await tagger.getAllTags(path);
+          debugPrint('TAG_DEBUG: Leído con flutter_audio_tagger');
+        } catch (e) {
           debugPrint(
-            'YT_DEBUG: Imagen $i: ${pic.mimetype}, Tamaño: ${pic.bytes.length} bytes, Tipo: ${pic.pictureType}',
+            'TAG_DEBUG: ⚠️ Plugin nativo falló en lectura. Intentando con AMR...',
           );
+          final file = File(path);
+          final metadata = amr.readMetadata(file, getImage: true);
+          tag = Tag(
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album,
+            year: metadata.year?.year.toString(),
+            genre: metadata.genres.join(', '),
+            artwork: metadata.pictures.isNotEmpty
+                ? metadata.pictures.first.bytes
+                : null,
+          );
+          debugPrint('TAG_DEBUG: ✅ Leído con éxito usando fallback de AMR');
         }
+
+        debugPrint('TAG_DEBUG: === Resumen de Datos ===');
+        debugPrint('TAG_DEBUG: Título: ${tag?.title}');
+        debugPrint('TAG_DEBUG: Artista: ${tag?.artist}');
+        debugPrint(
+          'TAG_DEBUG: Portada: ${tag?.artwork != null ? '${tag!.artwork!.length} bytes' : 'Nula'}',
+        );
+        debugPrint('TAG_DEBUG: =======================');
 
         setState(() {
           _currentFilePath = path;
-          _metadata = metadata;
+          _tag = tag;
           _isEditing = false;
         });
         _populateControllers();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al leer metadatos: $e')),
+            SnackBar(content: Text('Error al procesar archivo: $e')),
           );
         }
       }
@@ -84,68 +107,111 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
 
   Future<void> _saveChanges() async {
     if (_currentFilePath == null) return;
-    final file = File(_currentFilePath!);
-    debugPrint('Iniciando guardado en: $_currentFilePath');
+    debugPrint(
+      'Iniciando guardado con flutter_audio_tagger en: $_currentFilePath',
+    );
 
     try {
-      updateMetadata(file, (metadata) {
-        debugPrint('Configurando nuevos metadatos...');
-        debugPrint('Título: ${_titleController.text}');
-        debugPrint('Artista: ${_artistController.text}');
-
-        metadata.setTitle(_titleController.text);
-        metadata.setArtist(_artistController.text);
-        metadata.setAlbum(_albumController.text);
-
-        if (_yearController.text.isNotEmpty) {
-          final year = int.tryParse(_yearController.text);
-          if (year != null) {
-            debugPrint('Año: $year');
-            metadata.setYear(DateTime(year));
-          }
-        }
-
-        if (_genreController.text.isNotEmpty) {
-          debugPrint('YT_DEBUG: Géneros: [${_genreController.text}]');
-          metadata.setGenres([_genreController.text]);
-        }
-
-        // Mantener imágenes existentes si las hay
-        if (_metadata != null && _metadata!.pictures.isNotEmpty) {
-          debugPrint(
-            'YT_DEBUG: Manteniendo ${_metadata!.pictures.length} imágenes existentes',
-          );
-          metadata.setPictures(_metadata!.pictures);
-        }
-      });
-      debugPrint('YT_DEBUG: updateMetadata completado (sincrónicamente)');
-
-      // Refrescar metadatos después de guardar
-      final newMetadata = readMetadata(file, getImage: true);
-      debugPrint(
-        'YT_DEBUG: Metadatos refrescados. Imágenes: ${newMetadata.pictures.length}',
+      final tagger = FlutterAudioTagger();
+      final newTag = Tag(
+        title: _titleController.text,
+        artist: _artistController.text,
+        album: _albumController.text,
+        year: _yearController.text,
+        genre: _genreController.text,
+        artwork: _tag?.artwork,
       );
 
-      setState(() {
-        _metadata = newMetadata;
-        _isEditing = false;
-      });
-      _populateControllers();
+      bool success = false;
+      Uint8List? musicData;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cambios guardados correctamente'),
-            backgroundColor: Colors.green,
-          ),
+      try {
+        debugPrint('TAG_DEBUG: Intento 1: editTagsAndArtwork (con portada)...');
+        final result = await tagger.editTagsAndArtwork(
+          newTag,
+          _currentFilePath!,
         );
+        musicData = result.musicData;
+        success = true;
+      } catch (e) {
+        debugPrint(
+          'TAG_DEBUG: ⚠️ Falló Intento 1. Probando Intento 2: Solo Texto...',
+        );
+        try {
+          final result = await tagger.editTags(newTag, _currentFilePath!);
+          musicData = result.musicData;
+          success = true;
+        } catch (e2) {
+          debugPrint(
+            'TAG_DEBUG: ⚠️ Falló Intento 2. Probando Intento 3: Fallback AMR...',
+          );
+          try {
+            final file = File(_currentFilePath!);
+            amr.updateMetadata(file, (m) {
+              m.setTitle(_titleController.text);
+              m.setArtist(_artistController.text);
+              m.setAlbum(_albumController.text);
+            });
+            await Future.delayed(const Duration(milliseconds: 500));
+            success = true;
+          } catch (e3) {
+            throw 'Todos los métodos de guardado fallaron.';
+          }
+        }
+      }
+
+      if (musicData != null) {
+        final originalFile = File(_currentFilePath!);
+        final directory = originalFile.parent.path;
+        final fileName = originalFile.path
+            .split(Platform.isWindows ? '\\' : '/')
+            .last;
+        final dotIndex = fileName.lastIndexOf('.');
+
+        String newPath;
+        if (dotIndex != -1) {
+          var nameOnly = fileName.substring(0, dotIndex);
+          final extension = fileName.substring(dotIndex);
+          if (!nameOnly.endsWith('_tagged')) nameOnly = '${nameOnly}_tagged';
+          newPath = '$directory/$nameOnly$extension';
+        } else {
+          newPath = originalFile.path.endsWith('_tagged')
+              ? originalFile.path
+              : '${originalFile.path}_tagged';
+        }
+
+        final newFile = File(newPath);
+        await newFile.writeAsBytes(musicData);
+        _currentFilePath = newPath;
+      }
+
+      if (success) {
+        // Refrescar datos
+        final refreshedTag = await _readAppliedTags(_currentFilePath!);
+        setState(() {
+          _tag = refreshedTag;
+          _isEditing = false;
+        });
+        _populateControllers();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cambios guardados con éxito (Sistema Fallback)'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
     } catch (e, stack) {
       debugPrint('ERROR AL GUARDAR: $e');
       debugPrint('STACKTRACE: $stack');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -156,11 +222,11 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Editor de Etiquetas"),
+        title: const Text("Editor de Etiquetas (Tagger)"),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          if (_metadata != null)
+          if (_tag != null)
             IconButton(
               icon: Icon(_isEditing ? Icons.close : Icons.edit),
               onPressed: () {
@@ -214,7 +280,7 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
             ),
           ),
           Expanded(
-            child: _metadata != null
+            child: _tag != null
                 ? _buildTagCards()
                 : Center(
                     child: Column(
@@ -259,7 +325,7 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
 
   Widget _buildArtworkCard() {
     final theme = Theme.of(context);
-    final hasArtwork = _metadata?.pictures.isNotEmpty ?? false;
+    final hasArtwork = _tag?.artwork != null;
 
     return Card(
       elevation: 0,
@@ -289,7 +355,7 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
                   color: theme.colorScheme.surfaceVariant,
                   image: hasArtwork
                       ? DecorationImage(
-                          image: MemoryImage(_metadata!.pictures.first.bytes),
+                          image: MemoryImage(_tag!.artwork!),
                           fit: BoxFit.cover,
                         )
                       : null,
@@ -347,5 +413,23 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
         ),
       ),
     );
+  }
+
+  Future<Tag?> _readAppliedTags(String path) async {
+    try {
+      final tagger = FlutterAudioTagger();
+      return await tagger.getAllTags(path);
+    } catch (e) {
+      final file = File(path);
+      final metadata = amr.readMetadata(file, getImage: true);
+      return Tag(
+        title: metadata.title,
+        artist: metadata.artist,
+        album: metadata.album,
+        artwork: metadata.pictures.isNotEmpty
+            ? metadata.pictures.first.bytes
+            : null,
+      );
+    }
   }
 }

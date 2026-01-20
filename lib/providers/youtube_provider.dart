@@ -3,9 +3,13 @@ import 'package:http/http.dart' as http;
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
-import 'package:audio_metadata_reader/audio_metadata_reader.dart';
+import 'package:audio_metadata_reader/audio_metadata_reader.dart' as amr;
+import 'package:flutter_audio_tagger/flutter_audio_tagger.dart';
+import 'package:flutter_audio_tagger/tag.dart' as fat;
 import 'package:zmusic/providers/music_library_provider.dart';
 import 'dart:typed_data';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+//import 'package:metadata_god/metadata_god.dart' as mg;
 
 part 'youtube_provider.g.dart';
 
@@ -156,6 +160,67 @@ class YouTubeDownload extends _$YouTubeDownload {
     };
   }
 
+  // Función auxiliar para comprimir imágenes de portada
+  Future<Uint8List?> _compressArtwork(Uint8List imageBytes) async {
+    try {
+      final originalSize = imageBytes.length;
+      print(
+        'YT_DEBUG: Tamaño original de imagen: ${(originalSize / 1024).toStringAsFixed(2)} KB',
+      );
+
+      // Si la imagen es menor a 500KB, no comprimir
+      if (originalSize < 500 * 1024) {
+        print('YT_DEBUG: Imagen ya es pequeña, no se comprime');
+        return imageBytes;
+      }
+
+      // Comprimir la imagen a máximo 800x800 con calidad 85
+      final compressedBytes = await FlutterImageCompress.compressWithList(
+        imageBytes,
+        minWidth: 800,
+        minHeight: 800,
+        quality: 85,
+        format: CompressFormat.jpeg,
+      );
+
+      final compressedSize = compressedBytes.length;
+      final reduction = ((1 - compressedSize / originalSize) * 100)
+          .toStringAsFixed(1);
+      print(
+        'YT_DEBUG: Imagen comprimida: ${(compressedSize / 1024).toStringAsFixed(2)} KB (reducción: $reduction%)',
+      );
+
+      return Uint8List.fromList(compressedBytes);
+    } catch (e) {
+      print('YT_DEBUG: Error al comprimir imagen: $e');
+      return imageBytes; // Retornar original si falla la compresión
+    }
+  }
+
+  // Función auxiliar para validar si es seguro modificar metadatos
+  bool _isSafeToModifyMetadata(File file) {
+    try {
+      final fileSize = file.lengthSync();
+      final fileSizeMB = fileSize / (1024 * 1024);
+      print(
+        'YT_DEBUG: Tamaño del archivo de audio: ${fileSizeMB.toStringAsFixed(2)} MB',
+      );
+
+      // Límite de 200MB para modificar metadatos de forma segura
+      if (fileSizeMB > 200) {
+        print(
+          'YT_DEBUG: ⚠️ Archivo muy grande (>${fileSizeMB.toStringAsFixed(0)}MB), saltando metadatos',
+        );
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      print('YT_DEBUG: Error al verificar tamaño de archivo: $e');
+      return false;
+    }
+  }
+
   Future<String?> downloadAudio(YouTubeVideoResult video) async {
     try {
       print('YT_DEBUG: Iniciando descarga para ID: ${video.id}');
@@ -185,7 +250,7 @@ class YouTubeDownload extends _$YouTubeDownload {
         manifest = await _yt.videos.streams
             .getManifest(
               video.id,
-              ytClients: [YoutubeApiClient.ios, YoutubeApiClient.androidVr],
+              ytClients: [YoutubeApiClient.android, YoutubeApiClient.ios],
             )
             .timeout(
               const Duration(seconds: 30),
@@ -286,40 +351,130 @@ class YouTubeDownload extends _$YouTubeDownload {
 
       // Metadatos automáticos usando audio_metadata_reader
       try {
-        print('YT_DEBUG: Iniciando incrustación de metadatos...');
-        final thumbnailFile = File('${directory.path}/$fileName.jpg');
-        Uint8List? artworkBytes;
-        if (await thumbnailFile.exists()) {
-          artworkBytes = await thumbnailFile.readAsBytes();
+        // Validar si es seguro modificar metadatos basado en el tamaño del archivo
+        if (!_isSafeToModifyMetadata(file)) {
           print(
-            'YT_DEBUG: Imagen de portada lista (${artworkBytes.length} bytes)',
+            'YT_DEBUG: ⚠️ Archivo demasiado grande, omitiendo modificación de metadatos',
           );
+          print(
+            'YT_DEBUG: El archivo se descargó correctamente pero sin metadatos incrustados',
+          );
+        } else {
+          print('YT_DEBUG: Iniciando incrustación de metadatos...');
+          print('YT_DEBUG: Archivo: ${file.path}');
+          print('YT_DEBUG: Título a escribir: "$title"');
+          print('YT_DEBUG: Artista a escribir: "$artist"');
+
+          final thumbnailFile = File('${directory.path}/$fileName.jpg');
+          Uint8List? artworkBytes;
+
+          if (await thumbnailFile.exists()) {
+            final originalBytes = await thumbnailFile.readAsBytes();
+            print(
+              'YT_DEBUG: Imagen de portada descargada (${(originalBytes.length / 1024).toStringAsFixed(2)} KB)',
+            );
+
+            // Comprimir la imagen antes de incrustarla
+            artworkBytes = await _compressArtwork(originalBytes);
+
+            if (artworkBytes != null) {
+              print('YT_DEBUG: ✅ Imagen lista para incrustar');
+            }
+          } else {
+            print('YT_DEBUG: ⚠️ No se encontró archivo de miniatura');
+          }
+
+          // Usar flutter_audio_tagger para incrustar metadatos y portada
+          bool metadataSuccess = false;
+          try {
+            print(
+              'YT_DEBUG: Iniciando incrustación de metadatos con flutter_audio_tagger...',
+            );
+            final tagger = FlutterAudioTagger();
+
+            final tagToSet = fat.Tag(
+              title: title,
+              artist: artist,
+              artwork: artworkBytes,
+            );
+
+            try {
+              print('YT_DEBUG: Intento 1: editTagsAndArtwork (con portada)...');
+              final result = await tagger.editTagsAndArtwork(
+                tagToSet,
+                file.path,
+              );
+              await file.writeAsBytes(result.musicData);
+              print('YT_DEBUG: ✅ Metadatos y portada incrustados con éxito');
+              metadataSuccess = true;
+            } catch (e) {
+              print(
+                'YT_DEBUG: ⚠️ Falló con portada. Intento 2: solo texto (editTags)...',
+              );
+              try {
+                final textResult = await tagger.editTags(tagToSet, file.path);
+                await file.writeAsBytes(textResult.musicData);
+                print(
+                  'YT_DEBUG: ✅ Al menos el Título y Artista fueron incrustados',
+                );
+                metadataSuccess = true;
+              } catch (e2) {
+                print(
+                  'YT_DEBUG: ⚠️ Falló también solo texto. Intento 3: Fallback a AMR...',
+                );
+                try {
+                  amr.updateMetadata(file, (m) {
+                    m.setTitle(title);
+                    m.setArtist(artist);
+                    if (artworkBytes != null) {
+                      m.setPictures([
+                        amr.Picture(
+                          artworkBytes,
+                          'image/jpeg',
+                          amr.PictureType.coverFront,
+                        ),
+                      ]);
+                    }
+                  });
+                  await Future.delayed(const Duration(milliseconds: 500));
+                  print(
+                    'YT_DEBUG: ✅ Guardado usando fallback de audio_metadata_reader',
+                  );
+                  metadataSuccess = true;
+                } catch (e3) {
+                  print(
+                    'YT_DEBUG: ❌ Todos los métodos de guardado fallaron para este archivo.',
+                  );
+                }
+              }
+            }
+          } catch (e, _) {
+            print('YT_DEBUG: ❌ Error crítico en motor de etiquetas: $e');
+            metadataSuccess = false;
+          }
+
+          if (!metadataSuccess) {
+            print(
+              'YT_DEBUG: ❌ No se pudieron escribir metadatos con ninguna biblioteca',
+            );
+            print(
+              'YT_DEBUG: El archivo de audio se descargó correctamente pero sin metadatos',
+            );
+          }
         }
 
-        updateMetadata(file, (metadata) {
-          print('YT_DEBUG: Aplicando etiquetas a metadata object...');
-          metadata.setTitle(title);
-          metadata.setArtist(artist);
-          if (artworkBytes != null) {
-            print(
-              'YT_DEBUG: Incrustando portada (${artworkBytes.length} bytes)',
-            );
-            metadata.setPictures([
-              Picture(artworkBytes, 'image/jpeg', PictureType.coverFront),
-            ]);
-          } else {
-            print('YT_DEBUG: No hay portada para incrustar');
-          }
-        });
-        print('YT_DEBUG: Metadatos incrustados con éxito');
-
         // Limpiar archivo temporal de miniatura
+        final thumbnailFile = File('${directory.path}/$fileName.jpg');
         if (await thumbnailFile.exists()) {
           await thumbnailFile.delete();
           print('YT_DEBUG: Archivo temporal de imagen eliminado');
         }
-      } catch (e) {
-        print('YT_DEBUG: ERROR METADATOS: $e');
+      } catch (e, stackTrace) {
+        print('YT_DEBUG: ❌ ERROR METADATOS: $e');
+        print('YT_DEBUG: StackTrace: $stackTrace');
+        print(
+          'YT_DEBUG: El archivo de audio se descargó correctamente, pero falló la incrustación de metadatos',
+        );
       }
 
       // Notificar MediaStore

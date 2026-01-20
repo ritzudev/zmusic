@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:zmusic/models/song_model.dart';
 
 /// Servicio de audio que maneja la reproducción en segundo plano
@@ -184,6 +185,44 @@ class MusicAudioHandler extends BaseAudioHandler
         queueIndex: _currentIndex,
         repeatMode: _repeatMode,
       ),
+    );
+    _updateHomeWidget();
+  }
+
+  /// Actualizar el Home Widget con los datos actuales
+  Future<void> _updateHomeWidget() async {
+    final track = currentTrack;
+    if (track == null) return;
+
+    await HomeWidget.saveWidgetData<String>('title', track.title);
+    await HomeWidget.saveWidgetData<String>('artist', track.artist);
+    await HomeWidget.saveWidgetData<bool>('is_playing', _player.playing);
+
+    // Guardar carátula para el widget
+    try {
+      final artworkBytes = await _audioQuery.queryArtwork(
+        track.albumId ?? track.songId,
+        track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
+        format: ArtworkFormat.JPEG,
+        size: 500,
+      );
+
+      if (artworkBytes != null && artworkBytes.isNotEmpty) {
+        final directory = await getTemporaryDirectory();
+        final artworkPath = '${directory.path}/widget_artwork.jpg';
+        final file = File(artworkPath);
+        await file.writeAsBytes(artworkBytes);
+        await HomeWidget.saveWidgetData<String>('artwork_path', artworkPath);
+      } else {
+        await HomeWidget.saveWidgetData<String>('artwork_path', null);
+      }
+    } catch (e) {
+      print('Error al guardar artwork para el widget: $e');
+    }
+
+    await HomeWidget.updateWidget(
+      name: 'HomeScreenWidgetProvider',
+      androidName: 'HomeScreenWidgetProvider',
     );
   }
 
