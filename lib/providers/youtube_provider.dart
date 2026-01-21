@@ -4,12 +4,9 @@ import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as amr;
-import 'package:flutter_audio_tagger/flutter_audio_tagger.dart';
-import 'package:flutter_audio_tagger/tag.dart' as fat;
 import 'package:zmusic/providers/music_library_provider.dart';
 import 'dart:typed_data';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-//import 'package:metadata_god/metadata_god.dart' as mg;
 
 part 'youtube_provider.g.dart';
 
@@ -51,12 +48,23 @@ class YouTubeSearch extends _$YouTubeSearch {
 
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      // Intentar detectar si es una Playlist ID o URL
+      // Intentar detectar si es una Playlist ID o URL de forma más estricta
       PlaylistId? playlistId;
-      try {
-        playlistId = PlaylistId(query);
-      } catch (_) {
-        // No es un ID de playlist válido
+      final trimmedQuery = query.trim();
+
+      // Solo considerar playlist si es una URL de YouTube o empieza con prefijos de ID conocidos
+      bool looksLikePlaylist =
+          trimmedQuery.contains('youtube.com') ||
+          trimmedQuery.contains('youtu.be') ||
+          trimmedQuery.startsWith('PL') ||
+          trimmedQuery.startsWith('RD');
+
+      if (looksLikePlaylist) {
+        try {
+          playlistId = PlaylistId(trimmedQuery);
+        } catch (_) {
+          // No es un ID de playlist válido realmente
+        }
       }
 
       if (playlistId != null) {
@@ -105,26 +113,28 @@ class YouTubeDownload extends _$YouTubeDownload {
   @override
   DownloadState? build() => null; // null if not downloading
 
-  // Helper para extraer artista y título del nombre del video
   Map<String, String> _parseVideoTitle(
     String videoTitle,
     String channelAuthor,
   ) {
     // Limpiar texto común de YouTube
     String cleanTitle = videoTitle
-        .replaceAll(RegExp(r'\(Official.*?\)', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\[Official.*?\]', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\(Audio.*?\)', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\[Audio.*?\]', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\(Video.*?\)', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\[Video.*?\]', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\(Lyric.*?\)', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\[Lyric.*?\]', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\(MV.*?\)', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\[MV.*?\]', caseSensitive: false), '')
+        .replaceAll(
+          RegExp(
+            r'\((Official|Audio|Video|Lyric|MV).*?\)',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'\[(Official|Audio|Video|Lyric|MV).*?\]',
+            caseSensitive: false,
+          ),
+          '',
+        )
         .trim();
 
-    // Separadores comunes con y sin espacios
     final separators = [
       ' - ',
       ' – ',
@@ -137,7 +147,7 @@ class YouTubeDownload extends _$YouTubeDownload {
       ' feat. ',
       ' FT ',
       ' FEAT ',
-      '-', // Último recurso: guion solo si no hay espacios
+      '-',
     ];
 
     for (var separator in separators) {
@@ -153,7 +163,6 @@ class YouTubeDownload extends _$YouTubeDownload {
       }
     }
 
-    // Fallback: Si no hay separador, usar el autor del canal como artista
     return {
       'artist': channelAuthor.replaceAll(' - Topic', '').trim(),
       'title': cleanTitle,
@@ -250,7 +259,7 @@ class YouTubeDownload extends _$YouTubeDownload {
         manifest = await _yt.videos.streams
             .getManifest(
               video.id,
-              ytClients: [YoutubeApiClient.android, YoutubeApiClient.ios],
+              ytClients: [YoutubeApiClient.ios, YoutubeApiClient.androidVr],
             )
             .timeout(
               const Duration(seconds: 30),
@@ -301,30 +310,52 @@ class YouTubeDownload extends _$YouTubeDownload {
       final file = File('${directory.path}/$fileName.$extension');
       print('YT_DEBUG: Archivo destino: ${file.path}');
 
-      // Descargar miniatura (Mejor resolución posible)
+      // 5. Descargar miniatura (Mejor resolución real posible)
       try {
         print('YT_DEBUG: Descargando miniatura de alta resolución...');
-        // Priorizar: maxResUrl -> highResUrl -> standardResUrl -> thumbnailUrl
-        String thumbUrl = video.thumbnailUrl;
-        if (fullVideo.thumbnails.maxResUrl.isNotEmpty) {
-          thumbUrl = fullVideo.thumbnails.maxResUrl;
-        } else if (fullVideo.thumbnails.highResUrl.isNotEmpty) {
-          thumbUrl = fullVideo.thumbnails.highResUrl;
-        } else if (fullVideo.thumbnails.standardResUrl.isNotEmpty) {
-          thumbUrl = fullVideo.thumbnails.standardResUrl;
+        final thumbCandidates = [
+          if (fullVideo.thumbnails.maxResUrl.isNotEmpty)
+            fullVideo.thumbnails.maxResUrl,
+          if (fullVideo.thumbnails.highResUrl.isNotEmpty)
+            fullVideo.thumbnails.highResUrl,
+          if (fullVideo.thumbnails.standardResUrl.isNotEmpty)
+            fullVideo.thumbnails.standardResUrl,
+          video.thumbnailUrl,
+        ];
+
+        Uint8List? bestImageBytes;
+        for (String url in thumbCandidates) {
+          try {
+            final response = await http
+                .get(Uri.parse(url))
+                .timeout(const Duration(seconds: 10));
+            if (response.statusCode == 200) {
+              // YouTube a veces devuelve una imagen de 120x90 (aprox 1k-3k bytes)
+              // cuando maxresdefault no existe realmente.
+              if (response.bodyBytes.length > 5000) {
+                bestImageBytes = response.bodyBytes;
+                print(
+                  'YT_DEBUG: Miniatura válida encontrada en: $url (${response.bodyBytes.length} bytes)',
+                );
+                break;
+              } else {
+                print(
+                  'YT_DEBUG: Imagen en $url parece ser un placeholder (muy pequeña), probando siguiente...',
+                );
+              }
+            }
+          } catch (e) {
+            print('YT_DEBUG: Error probando URL de miniatura $url: $e');
+          }
         }
 
-        print('YT_DEBUG: Usando URL de miniatura: $thumbUrl');
-        final response = await http.get(Uri.parse(thumbUrl));
-        if (response.statusCode == 200) {
+        if (bestImageBytes != null) {
           final thumbnailFile = File('${directory.path}/$fileName.jpg');
-          await thumbnailFile.writeAsBytes(response.bodyBytes);
-          print(
-            'YT_DEBUG: Miniatura (${response.bodyBytes.length} bytes) guardada temporalmente',
-          );
+          await thumbnailFile.writeAsBytes(bestImageBytes);
+          print('YT_DEBUG: Miniatura guardada temporalmente.');
         }
       } catch (e) {
-        print('YT_DEBUG: Error al descargar miniatura: $e');
+        print('YT_DEBUG: Error general al descargar miniatura: $e');
       }
 
       // 5. Descargar
@@ -349,132 +380,48 @@ class YouTubeDownload extends _$YouTubeDownload {
       await fileStream.close();
       print('YT_DEBUG: Descarga de archivo completada');
 
-      // Metadatos automáticos usando audio_metadata_reader
+      // Metadatos usando audio_metadata_reader (AMR)
       try {
-        // Validar si es seguro modificar metadatos basado en el tamaño del archivo
-        if (!_isSafeToModifyMetadata(file)) {
-          print(
-            'YT_DEBUG: ⚠️ Archivo demasiado grande, omitiendo modificación de metadatos',
-          );
-          print(
-            'YT_DEBUG: El archivo se descargó correctamente pero sin metadatos incrustados',
-          );
-        } else {
-          print('YT_DEBUG: Iniciando incrustación de metadatos...');
-          print('YT_DEBUG: Archivo: ${file.path}');
-          print('YT_DEBUG: Título a escribir: "$title"');
-          print('YT_DEBUG: Artista a escribir: "$artist"');
+        if (_isSafeToModifyMetadata(file)) {
+          print('YT_DEBUG: Incrustando metadatos con AMR...');
 
           final thumbnailFile = File('${directory.path}/$fileName.jpg');
           Uint8List? artworkBytes;
 
           if (await thumbnailFile.exists()) {
             final originalBytes = await thumbnailFile.readAsBytes();
-            print(
-              'YT_DEBUG: Imagen de portada descargada (${(originalBytes.length / 1024).toStringAsFixed(2)} KB)',
-            );
-
-            // Comprimir la imagen antes de incrustarla
             artworkBytes = await _compressArtwork(originalBytes);
-
-            if (artworkBytes != null) {
-              print('YT_DEBUG: ✅ Imagen lista para incrustar');
-            }
-          } else {
-            print('YT_DEBUG: ⚠️ No se encontró archivo de miniatura');
           }
 
-          // Usar flutter_audio_tagger para incrustar metadatos y portada
-          bool metadataSuccess = false;
+          // Aplicar metadatos usando AMR
           try {
-            print(
-              'YT_DEBUG: Iniciando incrustación de metadatos con flutter_audio_tagger...',
-            );
-            final tagger = FlutterAudioTagger();
-
-            final tagToSet = fat.Tag(
-              title: title,
-              artist: artist,
-              artwork: artworkBytes,
-            );
-
-            try {
-              print('YT_DEBUG: Intento 1: editTagsAndArtwork (con portada)...');
-              final result = await tagger.editTagsAndArtwork(
-                tagToSet,
-                file.path,
-              );
-              await file.writeAsBytes(result.musicData);
-              print('YT_DEBUG: ✅ Metadatos y portada incrustados con éxito');
-              metadataSuccess = true;
-            } catch (e) {
-              print(
-                'YT_DEBUG: ⚠️ Falló con portada. Intento 2: solo texto (editTags)...',
-              );
-              try {
-                final textResult = await tagger.editTags(tagToSet, file.path);
-                await file.writeAsBytes(textResult.musicData);
-                print(
-                  'YT_DEBUG: ✅ Al menos el Título y Artista fueron incrustados',
-                );
-                metadataSuccess = true;
-              } catch (e2) {
-                print(
-                  'YT_DEBUG: ⚠️ Falló también solo texto. Intento 3: Fallback a AMR...',
-                );
-                try {
-                  amr.updateMetadata(file, (m) {
-                    m.setTitle(title);
-                    m.setArtist(artist);
-                    if (artworkBytes != null) {
-                      m.setPictures([
-                        amr.Picture(
-                          artworkBytes,
-                          'image/jpeg',
-                          amr.PictureType.coverFront,
-                        ),
-                      ]);
-                    }
-                  });
-                  await Future.delayed(const Duration(milliseconds: 500));
-                  print(
-                    'YT_DEBUG: ✅ Guardado usando fallback de audio_metadata_reader',
-                  );
-                  metadataSuccess = true;
-                } catch (e3) {
-                  print(
-                    'YT_DEBUG: ❌ Todos los métodos de guardado fallaron para este archivo.',
-                  );
-                }
+            amr.updateMetadata(file, (metadata) {
+              metadata.setTitle(title);
+              metadata.setArtist(artist);
+              if (artworkBytes != null) {
+                metadata.setPictures([
+                  amr.Picture(
+                    artworkBytes,
+                    'image/jpeg',
+                    amr.PictureType.coverFront,
+                  ),
+                ]);
               }
-            }
-          } catch (e, _) {
-            print('YT_DEBUG: ❌ Error crítico en motor de etiquetas: $e');
-            metadataSuccess = false;
+            });
+            print('YT_DEBUG: ✅ Metadatos incrustados con éxito usando AMR');
+          } catch (e) {
+            print('YT_DEBUG: ❌ Falló AMR al escribir: $e');
           }
 
-          if (!metadataSuccess) {
-            print(
-              'YT_DEBUG: ❌ No se pudieron escribir metadatos con ninguna biblioteca',
-            );
-            print(
-              'YT_DEBUG: El archivo de audio se descargó correctamente pero sin metadatos',
-            );
+          // Limpiar miniatura temporal
+          if (await thumbnailFile.exists()) {
+            await thumbnailFile.delete();
           }
+        } else {
+          print('YT_DEBUG: ⚠️ Archivo muy grande, saltando metadatos.');
         }
-
-        // Limpiar archivo temporal de miniatura
-        final thumbnailFile = File('${directory.path}/$fileName.jpg');
-        if (await thumbnailFile.exists()) {
-          await thumbnailFile.delete();
-          print('YT_DEBUG: Archivo temporal de imagen eliminado');
-        }
-      } catch (e, stackTrace) {
-        print('YT_DEBUG: ❌ ERROR METADATOS: $e');
-        print('YT_DEBUG: StackTrace: $stackTrace');
-        print(
-          'YT_DEBUG: El archivo de audio se descargó correctamente, pero falló la incrustación de metadatos',
-        );
+      } catch (e) {
+        print('YT_DEBUG: ❌ Error procesando metadatos: $e');
       }
 
       // Notificar MediaStore

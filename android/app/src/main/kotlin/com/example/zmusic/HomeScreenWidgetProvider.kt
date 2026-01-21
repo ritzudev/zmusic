@@ -20,20 +20,20 @@ class HomeScreenWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences
     ) {
         val density = context.resources.displayMetrics.density
-        // Redondeo de 16dp convertido a pixels
         val cornerRadius = 16 * density 
 
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.music_widget).apply {
-                val title = widgetData.getString("title", "No hay música")
-                val artist = widgetData.getString("artist", "Selecciona una canción")
+                val title = widgetData.getString("title", "Z Music")
+                val artist = widgetData.getString("artist", "Sin reproducción")
                 val isPlaying = widgetData.getBoolean("is_playing", false)
                 val artworkPath = widgetData.getString("artwork_path", null)
 
                 setTextViewText(R.id.widget_title, title)
                 setTextViewText(R.id.widget_artist, artist)
 
-                // Cargar Artwork con Bordes Redondeados
+                // Cargar Artwork
+                var artworkLoaded = false
                 if (artworkPath != null) {
                     val file = File(artworkPath)
                     if (file.exists()) {
@@ -41,44 +41,40 @@ class HomeScreenWidgetProvider : HomeWidgetProvider() {
                         if (bitmap != null) {
                             val roundedBitmap = getRoundedCornerBitmap(bitmap, cornerRadius) 
                             setImageViewBitmap(R.id.widget_artwork, roundedBitmap)
+                            artworkLoaded = true
                         }
                     }
-                } else {
+                }
+                
+                if (!artworkLoaded) {
                     setImageViewResource(R.id.widget_artwork, R.drawable.notification_placeholder)
                 }
 
-                // Actualizar icono de play/pause
+                // Icono Play/Pause
                 setImageViewResource(
                     R.id.widget_play_pause,
                     if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
                 )
 
-                // USAR EVENTOS DE MEDIOS NATIVOS
-                // Esto envía la orden directamente al AudioService de Flutter de forma eficiente
-                
+                // Intents de Medios
                 setOnClickPendingIntent(R.id.widget_play_pause, createMediaButtonIntent(context, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
                 setOnClickPendingIntent(R.id.widget_next, createMediaButtonIntent(context, KeyEvent.KEYCODE_MEDIA_NEXT))
                 setOnClickPendingIntent(R.id.widget_prev, createMediaButtonIntent(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
                 
-                // Abrir la app al tocar el fondo o la carátula
                 val launchIntent = HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java)
                 setOnClickPendingIntent(R.id.widget_container, launchIntent)
-                setOnClickPendingIntent(R.id.widget_artwork, launchIntent)
             }
             appWidgetManager.updateAppWidget(widgetId, views)
         }
     }
 
-    // Crea un Intent de botón multimedia que Android entrega al AudioService
     private fun createMediaButtonIntent(context: Context, keyCode: Int): PendingIntent {
         val intent = Intent(Intent.ACTION_MEDIA_BUTTON)
         intent.setPackage(context.packageName)
         intent.putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
         
         return PendingIntent.getBroadcast(
-            context, 
-            keyCode, 
-            intent, 
+            context, keyCode, intent, 
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
