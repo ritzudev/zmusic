@@ -26,11 +26,37 @@ class YouTubeVideoResult {
   });
 }
 
+class YouTubeSearchResult {
+  final List<YouTubeVideoResult> videos;
+  final bool isPlaylist;
+
+  YouTubeSearchResult({required this.videos, required this.isPlaylist});
+}
+
+enum DownloadStatus {
+  analyzing, // Analizando enlace
+  fetchingManifest, // Obteniendo información
+  selectingQuality, // Seleccionando calidad
+  downloadingThumbnail, // Descargando portada
+  downloading, // Descargando audio
+  writingMetadata, // Guardando información
+  finalizing, // Finalizando
+}
+
 class DownloadState {
   final double progress;
   final YouTubeVideoResult video;
+  final int totalBytes;
+  final int downloadedBytes;
+  final DownloadStatus status;
 
-  DownloadState({required this.progress, required this.video});
+  DownloadState({
+    required this.progress,
+    required this.video,
+    required this.totalBytes,
+    required this.downloadedBytes,
+    required this.status,
+  });
 }
 
 @riverpod
@@ -38,21 +64,22 @@ class YouTubeSearch extends _$YouTubeSearch {
   final _yt = YoutubeExplode();
 
   @override
-  FutureOr<List<YouTubeVideoResult>> build() => [];
+  FutureOr<YouTubeSearchResult> build() =>
+      YouTubeSearchResult(videos: [], isPlaylist: false);
 
   Future<void> search(String query) async {
     if (query.isEmpty) {
-      state = const AsyncValue.data([]);
+      state = AsyncValue.data(
+        YouTubeSearchResult(videos: [], isPlaylist: false),
+      );
       return;
     }
 
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      // Intentar detectar si es una Playlist ID o URL de forma más estricta
       PlaylistId? playlistId;
       final trimmedQuery = query.trim();
 
-      // Solo considerar playlist si es una URL de YouTube o empieza con prefijos de ID conocidos
       bool looksLikePlaylist =
           trimmedQuery.contains('youtube.com') ||
           trimmedQuery.contains('youtu.be') ||
@@ -62,17 +89,32 @@ class YouTubeSearch extends _$YouTubeSearch {
       if (looksLikePlaylist) {
         try {
           playlistId = PlaylistId(trimmedQuery);
-        } catch (_) {
-          // No es un ID de playlist válido realmente
-        }
+        } catch (_) {}
       }
 
       if (playlistId != null) {
-        // Si es una playlist, obtener todos sus videos
         final playlistVideos = await _yt.playlists
             .getVideos(playlistId)
             .toList();
-        return playlistVideos
+        return YouTubeSearchResult(
+          videos: playlistVideos
+              .map(
+                (video) => YouTubeVideoResult(
+                  id: video.id.value,
+                  title: video.title,
+                  author: video.author,
+                  duration: video.duration,
+                  thumbnailUrl: video.thumbnails.mediumResUrl,
+                ),
+              )
+              .toList(),
+          isPlaylist: true,
+        );
+      }
+
+      final results = await _yt.search.search(query);
+      return YouTubeSearchResult(
+        videos: results
             .map(
               (video) => YouTubeVideoResult(
                 id: video.id.value,
@@ -82,22 +124,9 @@ class YouTubeSearch extends _$YouTubeSearch {
                 thumbnailUrl: video.thumbnails.mediumResUrl,
               ),
             )
-            .toList();
-      }
-
-      // Si no es playlist, realizar búsqueda normal
-      final results = await _yt.search.search(query);
-      return results
-          .map(
-            (video) => YouTubeVideoResult(
-              id: video.id.value,
-              title: video.title,
-              author: video.author,
-              duration: video.duration,
-              thumbnailUrl: video.thumbnails.mediumResUrl,
-            ),
-          )
-          .toList();
+            .toList(),
+        isPlaylist: false,
+      );
     });
   }
 
@@ -233,7 +262,13 @@ class YouTubeDownload extends _$YouTubeDownload {
   Future<String?> downloadAudio(YouTubeVideoResult video) async {
     try {
       print('YT_DEBUG: Iniciando descarga para ID: ${video.id}');
-      state = DownloadState(progress: 0.0, video: video);
+      state = DownloadState(
+        progress: 0.0,
+        video: video,
+        totalBytes: 0,
+        downloadedBytes: 0,
+        status: DownloadStatus.analyzing,
+      );
 
       // 1. Solicitar permisos
       await ref.read(musicLibraryProvider.notifier).requestStoragePermission();
@@ -251,6 +286,14 @@ class YouTubeDownload extends _$YouTubeDownload {
       }
 
       // 3. Obtener el manifiesto
+      state = DownloadState(
+        progress: 0.0,
+        video: video,
+        totalBytes: 0,
+        downloadedBytes: 0,
+        status: DownloadStatus.fetchingManifest,
+      );
+
       print(
         'YT_DEBUG: Intentando obtener manifiesto con clientes ios/androidVr...',
       );
@@ -280,6 +323,14 @@ class YouTubeDownload extends _$YouTubeDownload {
       }
 
       // 4. Seleccionar el mejor stream de audio (priorizando MP4/M4A)
+      state = DownloadState(
+        progress: 0.0,
+        video: video,
+        totalBytes: 0,
+        downloadedBytes: 0,
+        status: DownloadStatus.selectingQuality,
+      );
+
       final audioStreams = manifest.audioOnly.where(
         (s) => s.container.name == 'mp4',
       );
@@ -311,6 +362,14 @@ class YouTubeDownload extends _$YouTubeDownload {
       print('YT_DEBUG: Archivo destino: ${file.path}');
 
       // 5. Descargar miniatura (Mejor resolución real posible)
+      state = DownloadState(
+        progress: 0.0,
+        video: video,
+        totalBytes: 0,
+        downloadedBytes: 0,
+        status: DownloadStatus.downloadingThumbnail,
+      );
+
       try {
         print('YT_DEBUG: Descargando miniatura de alta resolución...');
         final thumbCandidates = [
@@ -367,12 +426,17 @@ class YouTubeDownload extends _$YouTubeDownload {
       await for (final chunk in stream) {
         fileStream.add(chunk);
         downloadedBytes += chunk.length;
+        final currentProgress = (downloadedBytes / audioStream.size.totalBytes)
+            .clamp(0.0, 1.0);
+
         state = DownloadState(
-          progress: (downloadedBytes / audioStream.size.totalBytes).clamp(
-            0.0,
-            1.0,
-          ),
+          progress: currentProgress,
           video: video,
+          totalBytes: audioStream.size.totalBytes,
+          downloadedBytes: downloadedBytes,
+          status: currentProgress < 0.95
+              ? DownloadStatus.downloading
+              : DownloadStatus.finalizing,
         );
       }
 
@@ -383,6 +447,14 @@ class YouTubeDownload extends _$YouTubeDownload {
       // Metadatos usando audio_metadata_reader (AMR)
       try {
         if (_isSafeToModifyMetadata(file)) {
+          state = DownloadState(
+            progress: 0.98,
+            video: video,
+            totalBytes: audioStream.size.totalBytes,
+            downloadedBytes: audioStream.size.totalBytes,
+            status: DownloadStatus.writingMetadata,
+          );
+
           print('YT_DEBUG: Incrustando metadatos con AMR...');
 
           final thumbnailFile = File('${directory.path}/$fileName.jpg');

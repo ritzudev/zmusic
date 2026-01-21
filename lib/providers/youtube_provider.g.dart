@@ -13,7 +13,7 @@ part of 'youtube_provider.dart';
 const youTubeSearchProvider = YouTubeSearchProvider._();
 
 final class YouTubeSearchProvider
-    extends $AsyncNotifierProvider<YouTubeSearch, List<YouTubeVideoResult>> {
+    extends $AsyncNotifierProvider<YouTubeSearch, YouTubeSearchResult> {
   const YouTubeSearchProvider._()
     : super(
         from: null,
@@ -33,29 +33,21 @@ final class YouTubeSearchProvider
   YouTubeSearch create() => YouTubeSearch();
 }
 
-String _$youTubeSearchHash() => r'1707087223c58e0b5cd8fbaa3e0e17d1ac1d58bf';
+String _$youTubeSearchHash() => r'01f667f0acb2b33714c72c5156857e2d7b449ea1';
 
-abstract class _$YouTubeSearch
-    extends $AsyncNotifier<List<YouTubeVideoResult>> {
-  FutureOr<List<YouTubeVideoResult>> build();
+abstract class _$YouTubeSearch extends $AsyncNotifier<YouTubeSearchResult> {
+  FutureOr<YouTubeSearchResult> build();
   @$mustCallSuper
   @override
   void runBuild() {
     final created = build();
     final ref =
-        this.ref
-            as $Ref<
-              AsyncValue<List<YouTubeVideoResult>>,
-              List<YouTubeVideoResult>
-            >;
+        this.ref as $Ref<AsyncValue<YouTubeSearchResult>, YouTubeSearchResult>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<
-                AsyncValue<List<YouTubeVideoResult>>,
-                List<YouTubeVideoResult>
-              >,
-              AsyncValue<List<YouTubeVideoResult>>,
+              AnyNotifier<AsyncValue<YouTubeSearchResult>, YouTubeSearchResult>,
+              AsyncValue<YouTubeSearchResult>,
               Object?,
               Object?
             >;
@@ -95,7 +87,7 @@ final class YouTubeDownloadProvider
   }
 }
 
-String _$youTubeDownloadHash() => r'4096499408d42ae9085e75ecf7215f8847e68e37';
+String _$youTubeDownloadHash() => r'5cfd61bf7fca1ef89e124f7c94b0dacfb91e8c3f';
 
 abstract class _$YouTubeDownload extends $Notifier<DownloadState?> {
   DownloadState? build();

@@ -5,10 +5,11 @@ import 'package:zmusic/models/song_model.dart';
 import 'package:zmusic/providers/audio_player_provider.dart';
 import 'package:zmusic/providers/music_filter_provider.dart';
 import 'package:zmusic/providers/music_library_provider.dart';
-import 'package:zmusic/providers/theme_provider.dart';
 import 'package:zmusic/screens/now_playing_screen.dart';
 import 'package:zmusic/widgets/artwork_widget.dart';
 import 'package:zmusic/widgets/music_player_controls.dart';
+import 'package:zmusic/widgets/download_status_bar.dart';
+import 'package:zmusic/providers/youtube_provider.dart';
 
 class MusicHomeScreen extends ConsumerStatefulWidget {
   const MusicHomeScreen({super.key});
@@ -152,17 +153,13 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                 vertical: 12,
                               ),
                               border: OutlineInputBorder(
-                                borderRadius: const BorderRadius.all(
-                                  Radius.circular(12),
-                                ),
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
                                   color: theme.colorScheme.outline,
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius: const BorderRadius.all(
-                                  Radius.circular(12),
-                                ),
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
                                   color: theme.colorScheme.outline.withOpacity(
                                     0.3,
@@ -170,9 +167,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: const BorderRadius.all(
-                                  Radius.circular(12),
-                                ),
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
                                   color: theme.colorScheme.primary,
                                   width: 2,
@@ -182,23 +177,31 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
                       // Botón de descarga de YouTube
-                      Container(
-                        height: 50,
-                        width: 50,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(12),
+                      if (searchQuery.isEmpty)
+                        Row(
+                          children: [
+                            const SizedBox(width: 8),
+                            Container(
+                              height: 50,
+                              width: 50,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: IconButton(
+                                onPressed: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/youtube-search',
+                                  );
+                                },
+                                icon: const Icon(Icons.download_rounded),
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
-                        child: IconButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/youtube-search');
-                          },
-                          icon: const Icon(Icons.download_rounded),
-                          color: Colors.white,
-                        ),
-                      ),
                       // Botón Debug (Metadatos)
                       /* Container(
                         height: 50,
@@ -352,18 +355,30 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(
-                        left: 16.0,
-                        right: 16.0,
-                        bottom: 100, // Espacio para el mini player
-                      ),
-                      itemCount: filteredSongsList.length,
-                      itemBuilder: (context, index) {
-                        return _MusicCard(
-                          song: filteredSongsList[index],
-                          index: index,
-                          filteredPlaylist: filteredSongsList,
+                  : Consumer(
+                      builder: (context, ref, child) {
+                        final hasPlayer =
+                            ref.watch(audioPlayerProvider).currentTrack != null;
+                        final hasDownload =
+                            ref.watch(youTubeDownloadProvider) != null;
+                        double bottomPadding = 20;
+                        if (hasPlayer) bottomPadding += 120;
+                        if (hasDownload) bottomPadding += 100;
+
+                        return ListView.builder(
+                          padding: EdgeInsets.only(
+                            left: 16.0,
+                            right: 16.0,
+                            bottom: bottomPadding,
+                          ),
+                          itemCount: filteredSongsList.length,
+                          itemBuilder: (context, index) {
+                            return _MusicCard(
+                              song: filteredSongsList[index],
+                              index: index,
+                              filteredPlaylist: filteredSongsList,
+                            );
+                          },
                         );
                       },
                     ),
@@ -433,6 +448,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                 );
               },
             ),
+            const DownloadStatusBar(),
           ],
         ),
       ),

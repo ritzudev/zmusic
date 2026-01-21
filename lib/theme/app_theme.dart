@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 enum AppPalette { mint, sunset, ocean, royal }
 
@@ -61,7 +62,25 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      fontFamily: 'Montserrat',
+      textTheme:
+          GoogleFonts.montserratTextTheme(
+            ThemeData(brightness: Brightness.dark).textTheme,
+          ).copyWith(
+            displayLarge: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.bold),
+            displayMedium: GoogleFonts.spaceGrotesk(
+              fontWeight: FontWeight.bold,
+            ),
+            displaySmall: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.bold),
+            headlineLarge: GoogleFonts.spaceGrotesk(
+              fontWeight: FontWeight.bold,
+            ),
+            headlineMedium: GoogleFonts.spaceGrotesk(
+              fontWeight: FontWeight.bold,
+            ),
+            headlineSmall: GoogleFonts.spaceGrotesk(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
       colorScheme: ColorScheme.dark(
         surface: cardColor,
         primary: primaryColor,
@@ -74,7 +93,7 @@ class AppTheme {
         backgroundColor: bgColor,
         elevation: 0,
         iconTheme: IconThemeData(color: primaryColor),
-        titleTextStyle: TextStyle(
+        titleTextStyle: GoogleFonts.spaceGrotesk(
           color: darkOnBg,
           fontSize: 20,
           fontWeight: FontWeight.bold,

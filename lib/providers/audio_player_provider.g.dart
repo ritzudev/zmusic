@@ -52,7 +52,7 @@ final class AudioHandlerProvider
   }
 }
 
-String _$audioHandlerHash() => r'454778da40cf919e516b94e5f05981ef72cd8a4e';
+String _$audioHandlerHash() => r'de13148a21efc84a814740ae508bbf60c3be99de';
 
 /// Provider del estado del reproductor
 
@@ -90,7 +90,7 @@ final class AudioPlayerProvider
   }
 }
 
-String _$audioPlayerHash() => r'b01809238c0a0b0ab7f2f3b49c080c536f38e35b';
+String _$audioPlayerHash() => r'b5242d1f8cb9c3f111a2bf06593d829946496e1c';
 
 /// Provider del estado del reproductor
 
