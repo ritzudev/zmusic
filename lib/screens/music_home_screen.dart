@@ -121,14 +121,6 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        "Z",
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
                       Expanded(
                         child: SizedBox(
                           height: 50,
@@ -207,29 +199,6 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           color: Colors.white,
                         ),
                       ),
-                      /* const SizedBox(width: 8),
-                      Container(
-                        height: 50,
-                        width: 50,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: IconButton(
-                          onPressed: () {
-                            ref.read(themeProvider.notifier).toggleTheme();
-                          },
-                          icon: Icon(
-                            theme.brightness == Brightness.dark
-                                ? Icons.light_mode
-                                : Icons.dark_mode,
-                            color: theme.brightness == Brightness.dark
-                                ? Colors.black
-                                : Colors.white,
-                          ),
-                        ),
-                      ), */
-                      const SizedBox(width: 8),
                       // Botón Debug (Metadatos)
                       /* Container(
                         height: 50,
@@ -249,11 +218,20 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                         ),
                       ),
                       const SizedBox(width: 8), */
-                      IconButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/settings');
-                        },
-                        icon: const Icon(Icons.more_vert),
+                      const SizedBox(width: 8),
+                      Container(
+                        height: 50,
+                        width: 50,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/settings');
+                          },
+                          icon: const Icon(Icons.settings, color: Colors.white),
+                        ),
                       ),
                     ],
                   ),

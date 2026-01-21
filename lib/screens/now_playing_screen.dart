@@ -27,215 +27,228 @@ class NowPlayingScreen extends ConsumerWidget {
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              theme.colorScheme.primary.withOpacity(0.3),
-              theme.colorScheme.surface,
-              theme.colorScheme.surface,
-            ],
+      body: GestureDetector(
+        onVerticalDragEnd: (details) {
+          // Si la velocidad hacia abajo es significativa (positiva en el eje Y)
+          if (details.primaryVelocity != null &&
+              details.primaryVelocity! > 600) {
+            Navigator.pop(context);
+          }
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                theme.colorScheme.primary.withOpacity(0.3),
+                theme.colorScheme.surface,
+                theme.colorScheme.surface,
+              ],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 40),
-              child: Column(
-                children: [
-                  // AppBar personalizado
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.keyboard_arrow_down, size: 32),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        Text(
-                          'Reproduciendo',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              physics:
+                  const BouncingScrollPhysics(), // Añade un toque más fluido
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 40),
+                child: Column(
+                  children: [
+                    // AppBar personalizado
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down,
+                              size: 32,
+                            ),
+                            onPressed: () => Navigator.pop(context),
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.more_vert),
-                          onPressed: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Arte del álbum
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 48),
-                    child: Container(
-                      width: double.infinity,
-                      height: MediaQuery.of(context).size.width - 116,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.colorScheme.primary.withOpacity(0.3),
-                            blurRadius: 16,
-                            spreadRadius: 8,
-                            offset: const Offset(0, 16),
+                          Text(
+                            'Reproduciendo',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.more_vert),
+                            onPressed: () {},
                           ),
                         ],
                       ),
-                      child: Hero(
-                        tag: 'album_art_${track.id}',
-                        child: ArtworkWidget(
-                          id: track.songId,
-                          type: ArtworkType.AUDIO,
-                          filePath: track.filePath,
-                          width: double.infinity,
-                          height: double.infinity,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Arte del álbum
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 48),
+                      child: Container(
+                        width: double.infinity,
+                        height: MediaQuery.of(context).size.width - 116,
+                        decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(24),
-                          nullIconSize: 120,
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.colorScheme.primary.withOpacity(0.3),
+                              blurRadius: 16,
+                              spreadRadius: 8,
+                              offset: const Offset(0, 16),
+                            ),
+                          ],
+                        ),
+                        child: Hero(
+                          tag: 'album_art_${track.id}',
+                          child: ArtworkWidget(
+                            id: track.songId,
+                            type: ArtworkType.AUDIO,
+                            filePath: track.filePath,
+                            width: double.infinity,
+                            height: double.infinity,
+                            borderRadius: BorderRadius.circular(24),
+                            nullIconSize: 120,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 48),
+                    const SizedBox(height: 48),
 
-                  // Información de la canción
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ScrollingText(
-                                text: track.title,
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
+                    // Información de la canción
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ScrollingText(
+                                  text: track.title,
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                  duration: const Duration(seconds: 15),
                                 ),
-                                duration: const Duration(seconds: 15),
-                              ),
-                              const SizedBox(height: 8),
-                              ScrollingText(
-                                text: track.artist,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface
-                                      .withOpacity(0.7),
+                                const SizedBox(height: 8),
+                                ScrollingText(
+                                  text: track.artist,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.onSurface
+                                        .withOpacity(0.7),
+                                  ),
+                                  duration: const Duration(seconds: 12),
                                 ),
-                                duration: const Duration(seconds: 12),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        IconButton(
-                          icon: Consumer(
+                          IconButton(
+                            icon: Consumer(
+                              builder: (context, ref, _) {
+                                final isFavorite = ref.watch(
+                                  musicLibraryProvider.select(
+                                    (library) =>
+                                        library
+                                            .where((s) => s.id == track.id)
+                                            .firstOrNull
+                                            ?.isFavorite ??
+                                        false,
+                                  ),
+                                );
+                                return Icon(
+                                  isFavorite
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  size: 28,
+                                  color: isFavorite ? Colors.red : null,
+                                );
+                              },
+                            ),
+                            onPressed: () {
+                              ref
+                                  .read(musicLibraryProvider.notifier)
+                                  .toggleFavorite(track.id);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Controles de reproducción
+                    const MusicPlayerControls(),
+
+                    const SizedBox(height: 24),
+
+                    // Controles adicionales (Shuffle, Playlist, Repeat)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Consumer(
                             builder: (context, ref, _) {
-                              final isFavorite = ref.watch(
-                                musicLibraryProvider.select(
-                                  (library) =>
-                                      library
-                                          .where((s) => s.id == track.id)
-                                          .firstOrNull
-                                          ?.isFavorite ??
-                                      false,
+                              final isShuffleEnabled = ref.watch(
+                                audioPlayerProvider.select(
+                                  (s) => s.isShuffleEnabled,
                                 ),
                               );
-                              return Icon(
-                                isFavorite
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 28,
-                                color: isFavorite ? Colors.red : null,
+
+                              return IconButton(
+                                icon: Icon(
+                                  Icons.shuffle,
+                                  size: 26,
+                                  color: isShuffleEnabled
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurface.withOpacity(
+                                          0.6,
+                                        ),
+                                ),
+                                onPressed: () {
+                                  ref
+                                      .read(audioPlayerProvider.notifier)
+                                      .toggleShuffle();
+                                },
                               );
                             },
                           ),
-                          onPressed: () {
-                            ref
-                                .read(musicLibraryProvider.notifier)
-                                .toggleFavorite(track.id);
-                          },
-                        ),
-                      ],
+                          IconButton(
+                            icon: const Icon(Icons.playlist_play, size: 30),
+                            onPressed: () => _showPlaylist(context, ref),
+                          ),
+                          Consumer(
+                            builder: (context, ref, _) {
+                              final repeatMode = ref.watch(
+                                audioPlayerProvider.select((s) => s.repeatMode),
+                              );
+                              final isActive = repeatMode != RepeatMode.none;
+
+                              return IconButton(
+                                icon: Icon(
+                                  repeatMode.icon,
+                                  size: 26,
+                                  color: isActive
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurface.withOpacity(
+                                          0.6,
+                                        ),
+                                ),
+                                onPressed: () {
+                                  ref
+                                      .read(audioPlayerProvider.notifier)
+                                      .toggleRepeatMode();
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Controles de reproducción
-                  const MusicPlayerControls(),
-
-                  const SizedBox(height: 24),
-
-                  // Controles adicionales (Shuffle, Playlist, Repeat)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Consumer(
-                          builder: (context, ref, _) {
-                            final isShuffleEnabled = ref.watch(
-                              audioPlayerProvider.select(
-                                (s) => s.isShuffleEnabled,
-                              ),
-                            );
-
-                            return IconButton(
-                              icon: Icon(
-                                Icons.shuffle,
-                                size: 26,
-                                color: isShuffleEnabled
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.onSurface.withOpacity(
-                                        0.6,
-                                      ),
-                              ),
-                              onPressed: () {
-                                ref
-                                    .read(audioPlayerProvider.notifier)
-                                    .toggleShuffle();
-                              },
-                            );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.playlist_play, size: 30),
-                          onPressed: () => _showPlaylist(context, ref),
-                        ),
-                        Consumer(
-                          builder: (context, ref, _) {
-                            final repeatMode = ref.watch(
-                              audioPlayerProvider.select((s) => s.repeatMode),
-                            );
-                            final isActive = repeatMode != RepeatMode.none;
-
-                            return IconButton(
-                              icon: Icon(
-                                repeatMode.icon,
-                                size: 26,
-                                color: isActive
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.onSurface.withOpacity(
-                                        0.6,
-                                      ),
-                              ),
-                              onPressed: () {
-                                ref
-                                    .read(audioPlayerProvider.notifier)
-                                    .toggleRepeatMode();
-                              },
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
