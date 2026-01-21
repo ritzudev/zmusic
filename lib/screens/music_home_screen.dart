@@ -204,7 +204,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                             Navigator.pushNamed(context, '/youtube-search');
                           },
                           icon: const Icon(Icons.download_rounded),
-                          color: theme.colorScheme.onPrimary,
+                          color: Colors.white,
                         ),
                       ),
                       /* const SizedBox(width: 8),
@@ -231,7 +231,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                       ), */
                       const SizedBox(width: 8),
                       // Botón Debug (Metadatos)
-                      Container(
+                      /* Container(
                         height: 50,
                         width: 50,
                         decoration: BoxDecoration(
@@ -248,7 +248,13 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 8), */
+                      IconButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/settings');
+                        },
+                        icon: const Icon(Icons.more_vert),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -394,14 +400,16 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
             heroTag: 'shuffle_button',
             onPressed: _isLoading ? null : _playRandomSong,
             tooltip: 'Reproducir música aleatoria',
-            child: const Icon(Icons.shuffle),
+            backgroundColor: theme.colorScheme.primary,
+            child: Icon(Icons.shuffle, color: Colors.white),
           ),
           const SizedBox(height: 16),
           FloatingActionButton(
             heroTag: 'refresh_button',
             onPressed: _isLoading ? null : _scanMusic,
             tooltip: 'Refrescar biblioteca',
-            child: const Icon(Icons.refresh),
+            backgroundColor: theme.colorScheme.primary,
+            child: Icon(Icons.refresh, color: Colors.white),
           ),
         ],
       ),
@@ -482,9 +490,7 @@ class _CategoryChip extends StatelessWidget {
           label,
           style: TextStyle(
             color: isSelected
-                ? (theme.brightness == Brightness.dark
-                      ? Colors.black
-                      : Colors.white)
+                ? Colors.white
                 : theme.colorScheme.onSurface.withOpacity(0.6),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
@@ -577,10 +583,9 @@ class _MusicCard extends ConsumerWidget {
                       if (isPlaying)
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
-                          child: Icon(
-                            Icons.equalizer,
-                            size: 16,
+                          child: AnimatedEqualizer(
                             color: theme.colorScheme.primary,
+                            size: 16,
                           ),
                         ),
                       Expanded(
@@ -623,6 +628,70 @@ class _MusicCard extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class AnimatedEqualizer extends StatefulWidget {
+  final Color color;
+  final double size;
+
+  const AnimatedEqualizer({super.key, required this.color, this.size = 16});
+
+  @override
+  State<AnimatedEqualizer> createState() => _AnimatedEqualizerState();
+}
+
+class _AnimatedEqualizerState extends State<AnimatedEqualizer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: List.generate(3, (index) {
+          return AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              // Creamos variaciones de altura para cada barra
+              double value = (index == 1)
+                  ? _controller.value
+                  : (index == 0)
+                  ? (1.0 - _controller.value).clamp(0.3, 1.0)
+                  : (_controller.value + 0.3).clamp(0.4, 0.9);
+
+              return Container(
+                width: widget.size / 5,
+                height: widget.size * value,
+                decoration: BoxDecoration(
+                  color: widget.color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              );
+            },
+          );
+        }),
       ),
     );
   }

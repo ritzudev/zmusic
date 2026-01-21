@@ -33,99 +33,126 @@ class MusicPlayerControls extends ConsumerWidget {
     AudioPlayerState state,
     AudioPlayer notifier,
   ) {
+    final theme = Theme.of(context);
     return Container(
-      height: 90,
+      height: 120,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).colorScheme.primaryContainer,
-            Theme.of(context).colorScheme.secondaryContainer,
-          ],
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(30),
+          topRight: Radius.circular(30),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
       ),
       child: Column(
         children: [
-          // Barra de progreso
-          LinearProgressIndicator(
-            value: state.progress,
-            backgroundColor: Colors.white.withOpacity(0.2),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              Theme.of(context).colorScheme.primary,
-            ),
-            minHeight: 4,
-          ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Column(
                 children: [
-                  // Información de la canción
-                  Hero(
-                    tag: 'album_art_${state.currentTrack!.id}',
-                    child: ArtworkWidget(
-                      id: state.currentTrack!.songId,
-                      type: ArtworkType.AUDIO,
-                      filePath: state.currentTrack!.filePath,
-                      width: 50,
-                      height: 50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ScrollingText(
-                          text: state.currentTrack!.title,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                  Row(
+                    children: [
+                      // Información de la canción
+                      Hero(
+                        tag: 'album_art_${state.currentTrack!.id}',
+                        child: ArtworkWidget(
+                          id: state.currentTrack!.songId,
+                          type: ArtworkType.AUDIO,
+                          filePath: state.currentTrack!.filePath,
+                          width: 50,
+                          height: 50,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        const SizedBox(height: 2),
-                        ScrollingText(
-                          text: state.currentTrack!.artist,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.7),
-                              ),
-                          duration: const Duration(seconds: 12),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ScrollingText(
+                              text: state.currentTrack!.title,
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 2),
+                            ScrollingText(
+                              text: state.currentTrack!.artist,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface.withOpacity(0.7),
+                                  ),
+                              duration: const Duration(seconds: 12),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                      // Controles
+                      IconButton(
+                        icon: const Icon(Icons.skip_previous),
+                        onPressed: () => notifier.skipToPrevious(),
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      Container(
+                        height: 40,
+                        width: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            state.isPlaying ? Icons.pause : Icons.play_arrow,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => notifier.togglePlayPause(),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.skip_next),
+                        onPressed: () => notifier.skipToNext(),
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: state.progress,
+                    backgroundColor: theme.brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.black.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(2),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).colorScheme.primary,
                     ),
+                    minHeight: 4,
                   ),
-                  // Controles
-                  IconButton(
-                    icon: const Icon(Icons.skip_previous),
-                    onPressed: () => notifier.skipToPrevious(),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      state.isPlaying
-                          ? Icons.pause_circle_filled
-                          : Icons.play_circle_filled,
-                      size: 40,
-                    ),
-                    onPressed: () => notifier.togglePlayPause(),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.skip_next),
-                    onPressed: () => notifier.skipToNext(),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formatDuration(state.position),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      Text(
+                        _formatDuration(state.duration ?? Duration.zero),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-          SizedBox(height: 10),
         ],
       ),
     );
@@ -197,21 +224,7 @@ class MusicPlayerControls extends ConsumerWidget {
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primary,
-                    Theme.of(context).colorScheme.secondary,
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withOpacity(0.4),
-                    blurRadius: 16,
-                    spreadRadius: 2,
-                  ),
-                ],
+                color: Theme.of(context).colorScheme.primary,
               ),
               child: IconButton(
                 icon: Icon(

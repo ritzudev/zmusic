@@ -81,7 +81,7 @@ class NowPlayingScreen extends ConsumerWidget {
                         boxShadow: [
                           BoxShadow(
                             color: theme.colorScheme.primary.withOpacity(0.3),
-                            blurRadius: 32,
+                            blurRadius: 16,
                             spreadRadius: 8,
                             offset: const Offset(0, 16),
                           ),

@@ -73,12 +73,12 @@ class _MainAppState extends ConsumerState<MainApp> {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeProvider);
+    final themeState = ref.watch(themeProvider);
 
     return MaterialApp(
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: themeMode,
+      theme: AppTheme.lightWithPalette(themeState.palette),
+      darkTheme: AppTheme.darkWithPalette(themeState.palette),
+      themeMode: themeState.mode,
       debugShowCheckedModeBanner: false,
       home: const MusicHomeScreen(),
       routes: {

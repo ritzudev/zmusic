@@ -1,46 +1,166 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zmusic/providers/theme_provider.dart';
+import 'package:zmusic/theme/app_theme.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeState = ref.watch(themeProvider);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Z Music Configuración')),
-      body: const Center(
+      appBar: AppBar(title: const Text('Configuración')),
+      body: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('General'),
+              _buildSectionTitle(context, 'Apariencia'),
+              const SizedBox(height: 12),
               Card(
                 child: Column(
                   children: [
-                    ListTile(
-                      title: Text('Idioma'),
-                      trailing: Icon(Icons.arrow_forward_ios),
-                    ),
-                    ListTile(
-                      title: Text('Tema'),
-                      trailing: Icon(Icons.arrow_forward_ios),
-                    ),
-                    ListTile(
-                      title: Text('Notificaciones'),
-                      trailing: Icon(Icons.arrow_forward_ios),
+                    SwitchListTile(
+                      title: const Text('Tema Oscuro'),
+                      subtitle: const Text(
+                        'Alternar entre modo claro y oscuro',
+                      ),
+                      secondary: Icon(
+                        themeState.mode == ThemeMode.dark
+                            ? Icons.dark_mode
+                            : Icons.light_mode,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      value: themeState.mode == ThemeMode.dark,
+                      onChanged: (val) {
+                        ref
+                            .read(themeProvider.notifier)
+                            .setThemeMode(
+                              val ? ThemeMode.dark : ThemeMode.light,
+                            );
+                      },
                     ),
                   ],
                 ),
               ),
-              /* Text('Reproducción'),
-              Divider(),
-              Text('Almacenamiento'),
-              Divider(),
-              Text('Acerca de'),
-              Divider(), */
+              const SizedBox(height: 24),
+              _buildSectionTitle(context, 'Paleta de Colores'),
+              const SizedBox(height: 8),
+              Text(
+                'Selecciona un color para personalizar el fondo y los acentos de la aplicación.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 100,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: AppPalette.values.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final palette = AppPalette.values[index];
+                    final isSelected = themeState.palette == palette;
+
+                    final accentColor = AppTheme.paletteAccents[palette]!;
+                    final bgColor = AppTheme.paletteBackgrounds[palette]!;
+
+                    return GestureDetector(
+                      onTap: () {
+                        ref.read(themeProvider.notifier).setPalette(palette);
+                      },
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: bgColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? accentColor
+                                    : Colors.white10,
+                                width: 3,
+                              ),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: accentColor.withOpacity(0.4),
+                                        blurRadius: 12,
+                                        spreadRadius: 2,
+                                      ),
+                                    ]
+                                  : [],
+                            ),
+                            child: Center(
+                              child: Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: accentColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            palette.name.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isSelected ? accentColor : Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 32),
+              _buildSectionTitle(context, 'General'),
+              const SizedBox(height: 12),
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.language),
+                      title: const Text('Idioma'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {},
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.notifications_none),
+                      title: const Text('Notificaciones'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {},
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.bold,
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
       ),
     );
   }

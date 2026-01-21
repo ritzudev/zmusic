@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+enum AppPalette { mint, sunset, ocean, royal }
+
 class AppTheme {
   // Dark Theme Colors
   static const Color darkBg = Color(0xFF0E0E2C);
@@ -19,94 +21,86 @@ class AppTheme {
   static const Color lightOnSurface = Color(0xFF1A1A1A);
   static const Color lightOnPrimary = Colors.white;
 
-  static ThemeData get light {
+  // Palette definition
+  static Map<AppPalette, Color> paletteAccents = {
+    AppPalette.mint: const Color(0xFF2A945F),
+    AppPalette.sunset: const Color(0xFFD35400),
+    AppPalette.ocean: const Color(0xFF3498DB),
+    AppPalette.royal: const Color(0xFF8E44AD),
+  };
+
+  static Map<AppPalette, Color> paletteBackgrounds = {
+    AppPalette.mint: const Color(0xFF0C1011),
+    AppPalette.sunset: const Color(0xFF14100E),
+    AppPalette.ocean: const Color(0xFF0C1117),
+    AppPalette.royal: const Color(0xFF120E16),
+  };
+
+  static ThemeData get light => lightWithPalette(AppPalette.mint);
+
+  static ThemeData lightWithPalette(AppPalette palette) {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      colorScheme: const ColorScheme.light(
-        surface: lightSurface,
-        primary: lightPrimary,
-        secondary: lightSecondary,
-        onSurface: lightOnSurface,
-        onPrimary: lightOnPrimary,
-      ),
-      scaffoldBackgroundColor: lightBg,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: lightBg,
-        elevation: 0,
-        iconTheme: IconThemeData(color: lightOnBg),
-        titleTextStyle: TextStyle(
-          color: lightOnBg,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        //filled: true,
-        //fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        hintStyle: const TextStyle(color: Colors.grey),
-        prefixIconColor: Colors.grey,
-      ),
+      colorSchemeSeed: paletteAccents[palette],
+      appBarTheme: const AppBarTheme(elevation: 0),
       cardTheme: CardThemeData(
-        color: lightSurface,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: lightSurface,
-        selectedItemColor: lightPrimary,
-        unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed,
-        elevation: 0,
       ),
     );
   }
 
-  static ThemeData get dark {
+  static ThemeData get dark => darkWithPalette(AppPalette.mint);
+
+  static ThemeData darkWithPalette(AppPalette palette) {
+    final primaryColor = paletteAccents[palette]!;
+    final bgColor = paletteBackgrounds[palette]!;
+    final cardColor = Color.alphaBlend(Colors.white.withOpacity(0.05), bgColor);
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: const ColorScheme.dark(
-        surface: darkSurface,
-        primary: darkPrimary,
-        secondary: darkSecondary,
+      fontFamily: 'Montserrat',
+      colorScheme: ColorScheme.dark(
+        surface: cardColor,
+        primary: primaryColor,
+        secondary: bgColor,
         onSurface: darkOnSurface,
-        onPrimary: darkOnPrimary,
+        onPrimary: bgColor,
       ),
-      scaffoldBackgroundColor: darkBg,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: darkBg,
+      scaffoldBackgroundColor: bgColor,
+      appBarTheme: AppBarTheme(
+        backgroundColor: bgColor,
         elevation: 0,
-        iconTheme: IconThemeData(color: darkOnBg),
+        iconTheme: IconThemeData(color: primaryColor),
         titleTextStyle: TextStyle(
           color: darkOnBg,
           fontSize: 20,
           fontWeight: FontWeight.bold,
         ),
       ),
+      iconTheme: IconThemeData(color: primaryColor),
+      primaryIconTheme: IconThemeData(color: primaryColor),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF1E1E45),
+        fillColor: cardColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-        hintStyle: const TextStyle(color: Color(0xFF8080A5)),
-        prefixIconColor: const Color(0xFF8080A5),
+        hintStyle: TextStyle(color: darkOnSurface.withOpacity(0.5)),
+        prefixIconColor: primaryColor,
       ),
       cardTheme: CardThemeData(
-        color: darkSurface,
+        color: cardColor,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: darkBg,
-        selectedItemColor: darkPrimary,
-        unselectedItemColor: Color(0xFF8080A5),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: bgColor,
+        selectedItemColor: primaryColor,
+        unselectedItemColor: darkOnSurface.withOpacity(0.4),
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
