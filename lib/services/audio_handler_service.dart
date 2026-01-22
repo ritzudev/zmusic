@@ -250,8 +250,24 @@ class MusicAudioHandler extends BaseAudioHandler
     bool playImmediately = false,
   }) async {
     _originalPlaylist = List.from(tracks); // Guardar orden original
-    _playlist = List.from(tracks);
-    _currentIndex = initialIndex;
+
+    if (_isShuffleEnabled) {
+      _playlist = List.from(tracks);
+      _playlist.shuffle();
+
+      // Si tenemos un índice inicial, buscar esa canción en la lista mezclada
+      // para empezar por ella, si no, empezar desde el índice 0 de la lista mezclada.
+      if (initialIndex >= 0 && initialIndex < tracks.length) {
+        final targetTrack = tracks[initialIndex];
+        _currentIndex = _playlist.indexWhere((t) => t.id == targetTrack.id);
+        if (_currentIndex == -1) _currentIndex = 0;
+      } else {
+        _currentIndex = 0;
+      }
+    } else {
+      _playlist = List.from(tracks);
+      _currentIndex = initialIndex;
+    }
 
     // Actualizar la cola
     queue.add(
