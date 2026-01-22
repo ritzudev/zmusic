@@ -6,6 +6,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:smtc_windows/smtc_windows.dart';
 import 'package:zmusic/models/song_model.dart';
 
 /// Servicio de audio que maneja la reproducción en segundo plano
@@ -15,6 +16,7 @@ class MusicAudioHandler extends BaseAudioHandler
   final AudioPlayer _player = AudioPlayer();
   final OnAudioQuery _audioQuery = OnAudioQuery();
   final List<StreamSubscription> _subscriptions = [];
+  SMTCWindows? _smtc;
 
   // Lista de reproducción actual
   List<MusicTrack> _playlist = [];
@@ -27,6 +29,52 @@ class MusicAudioHandler extends BaseAudioHandler
   MusicAudioHandler() {
     _init();
     _preparePlaceholder();
+    if (Platform.isWindows) {
+      _initSMTC();
+    }
+  }
+
+  Future<void> _initSMTC() async {
+    try {
+      // Registrar el plugin
+      await SMTCWindows.initialize();
+
+      _smtc = SMTCWindows(
+        config: const SMTCConfig(
+          playEnabled: true,
+          pauseEnabled: true,
+          nextEnabled: true,
+          prevEnabled: true,
+          stopEnabled: true,
+          fastForwardEnabled: true,
+          rewindEnabled: true,
+        ),
+      );
+
+      _smtc?.buttonPressStream.listen((event) async {
+        switch (event) {
+          case PressedButton.play:
+            await play();
+            break;
+          case PressedButton.pause:
+            await pause();
+            break;
+          case PressedButton.next:
+            await skipToNext();
+            break;
+          case PressedButton.previous:
+            await skipToPrevious();
+            break;
+          case PressedButton.stop:
+            await stop();
+            break;
+          default:
+            break;
+        }
+      });
+    } catch (e) {
+      print('Error al inicializar SMTC para Windows: $e');
+    }
   }
 
   Future<void> _preparePlaceholder() async {
@@ -212,6 +260,39 @@ class MusicAudioHandler extends BaseAudioHandler
       ),
     );
     _updateHomeWidget();
+    _updateSMTC();
+  }
+
+  /// Actualizar el estado de SMTC en Windows
+  Future<void> _updateSMTC() async {
+    if (!Platform.isWindows || _smtc == null) return;
+
+    try {
+      final track = currentTrack;
+      if (track != null) {
+        // Obtener URI de artwork (para Windows es un archivo local)
+        final artUri = await _getArtworkUri(track);
+        String? thumbPath;
+        if (artUri != null && artUri.isScheme('file')) {
+          thumbPath = artUri.toFilePath();
+        }
+
+        await _smtc?.updateMetadata(
+          MusicMetadata(
+            title: track.title,
+            artist: track.artist,
+            album: track.album ?? 'Álbum Desconocido',
+            thumbnail: thumbPath,
+          ),
+        );
+      }
+
+      await _smtc?.setPlaybackStatus(
+        _player.playing ? PlaybackStatus.playing : PlaybackStatus.paused,
+      );
+    } catch (e) {
+      print('Error al actualizar SMTC: $e');
+    }
   }
 
   /// Actualizar el Home Widget con los datos actuales
@@ -616,6 +697,16 @@ class MusicAudioHandler extends BaseAudioHandler
       await sub.cancel();
     }
     _subscriptions.clear();
+
+    // Liberar SMTC si existe
+    try {
+      if (_smtc != null) {
+        _smtc?.dispose();
+        _smtc = null;
+      }
+    } catch (e) {
+      print('Error al liberar SMTC: $e');
+    }
 
     // Detener y liberar el reproductor de forma segura
     try {
