@@ -18,6 +18,7 @@ dependencies:
   permission_handler: ^11.3.1
   path_provider: ^2.1.5
   just_audio: ^0.9.42
+  just_audio_windows: ^0.2.1
   on_audio_query_pluse: ^3.0.6
   audio_service: ^0.18.15
   rxdart: ^0.28.0

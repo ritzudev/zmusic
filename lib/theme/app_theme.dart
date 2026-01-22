@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-enum AppPalette { mint, sunset, ocean, royal }
+enum AppPalette {
+  mint,
+  sunset,
+  ocean,
+  royal,
+  lavender,
+  cyberpunk,
+  rosewood,
+  jungle,
+}
 
 class AppTheme {
   // Dark Theme Colors
@@ -25,16 +34,24 @@ class AppTheme {
   // Palette definition
   static Map<AppPalette, Color> paletteAccents = {
     AppPalette.mint: const Color(0xFF2A945F),
-    AppPalette.sunset: const Color(0xFFD35400),
+    AppPalette.sunset: const Color(0xFFE67E22),
     AppPalette.ocean: const Color(0xFF3498DB),
-    AppPalette.royal: const Color(0xFF8E44AD),
+    AppPalette.royal: const Color(0xFF9B59B6),
+    AppPalette.lavender: const Color(0xFF7D5FFF),
+    AppPalette.cyberpunk: const Color(0xFFFF006E),
+    AppPalette.rosewood: const Color(0xFFE84393),
+    AppPalette.jungle: const Color(0xFF00B894),
   };
 
   static Map<AppPalette, Color> paletteBackgrounds = {
     AppPalette.mint: const Color(0xFF0C1011),
-    AppPalette.sunset: const Color(0xFF14100E),
-    AppPalette.ocean: const Color(0xFF0C1117),
-    AppPalette.royal: const Color(0xFF120E16),
+    AppPalette.sunset: const Color(0xFF140E0A),
+    AppPalette.ocean: const Color(0xFF0A1016),
+    AppPalette.royal: const Color(0xFF120C16),
+    AppPalette.lavender: const Color(0xFF0F0C1D),
+    AppPalette.cyberpunk: const Color(0xFF110011),
+    AppPalette.rosewood: const Color(0xFF1A0A10),
+    AppPalette.jungle: const Color(0xFF05120F),
   };
 
   static ThemeData get light => lightWithPalette(AppPalette.mint);

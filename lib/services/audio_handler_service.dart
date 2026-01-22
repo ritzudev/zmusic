@@ -86,25 +86,40 @@ class MusicAudioHandler extends BaseAudioHandler
   /// Obtener URI del artwork para la notificación
   Future<Uri?> _getArtworkUri(MusicTrack track) async {
     try {
-      // Verificar si realmente existe el artwork en el sistema
-      final artworkBytes = await _audioQuery.queryArtwork(
-        track.albumId ?? track.songId,
-        track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
-        format: ArtworkFormat.JPEG,
-        size: 200, // Tamaño pequeño solo para verificación rápida
-      );
+      Uint8List? artworkBytes;
+
+      // Solo consultar artwork via MediaStore/OnAudioQuery en móviles
+      if (Platform.isAndroid || Platform.isIOS) {
+        artworkBytes = await _audioQuery.queryArtwork(
+          track.albumId ?? track.songId,
+          track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
+          format: ArtworkFormat.JPEG,
+          size: 200, // Tamaño pequeño solo para verificación rápida
+        );
+      }
 
       // Si existe artwork (bytes no nulos y no vacíos)
       if (artworkBytes != null && artworkBytes.isNotEmpty) {
-        if (track.albumId != null) {
-          return Uri.parse(
-            'content://media/external/audio/albumart/${track.albumId}',
-          );
+        if (Platform.isAndroid) {
+          if (track.albumId != null) {
+            return Uri.parse(
+              'content://media/external/audio/albumart/${track.albumId}',
+            );
+          } else {
+            return Uri.parse(
+              'content://media/external/audio/media/${track.songId}/albumart',
+            );
+          }
         } else {
-          // Fallback al songId si no hay albumId pero el sistema encontró algo
-          return Uri.parse(
-            'content://media/external/audio/media/${track.songId}/albumart',
-          );
+          // Para Windows/otros, guardar a archivo temporal y devolver uri de archivo
+          final directory = await getTemporaryDirectory();
+          final artworkPath =
+              '${directory.path}/thumb_${track.id.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')}.jpg';
+          final file = File(artworkPath);
+          if (!await file.exists()) {
+            await file.writeAsBytes(artworkBytes);
+          }
+          return Uri.file(artworkPath);
         }
       }
 
@@ -191,6 +206,8 @@ class MusicAudioHandler extends BaseAudioHandler
 
   /// Actualizar el Home Widget con los datos actuales
   Future<void> _updateHomeWidget() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+
     final track = currentTrack;
     if (track == null) return;
 
@@ -230,6 +247,7 @@ class MusicAudioHandler extends BaseAudioHandler
   Future<void> setPlaylist(
     List<MusicTrack> tracks, {
     int initialIndex = 0,
+    bool playImmediately = false,
   }) async {
     _originalPlaylist = List.from(tracks); // Guardar orden original
     _playlist = List.from(tracks);
@@ -255,6 +273,9 @@ class MusicAudioHandler extends BaseAudioHandler
 
     if (_playlist.isNotEmpty) {
       await _loadTrack(_currentIndex);
+      if (playImmediately) {
+        await play();
+      }
     }
   }
 
@@ -266,23 +287,61 @@ class MusicAudioHandler extends BaseAudioHandler
     final track = _playlist[index];
 
     try {
-      await _player.setFilePath(track.filePath);
+      print('DEBUG_PLAY: Seteando ruta en el player: ${track.filePath}');
 
-      final artUri = await _getArtworkUri(track);
-      mediaItem.add(
-        MediaItem(
-          id: track.id,
-          title: track.title,
-          artist: track.artist,
-          album: track.album ?? 'Álbum Desconocido',
-          duration: track.duration ?? _player.duration,
-          artUri: artUri,
-        ),
+      final uri = Uri.file(track.filePath);
+      print('DEBUG_PLAY: URI generado: ${uri.toString()}');
+
+      // En Windows, setAudioSource a veces no dispara el inicio de la reproducción correctamente
+      // si se llama inmediatamente a play(). Asegurarse de que el source se establezca bien.
+      await _player.setAudioSource(
+        AudioSource.uri(uri),
+        initialPosition: Duration.zero,
+        preload: true,
       );
 
+      // En Windows, a veces es útil llamar a load() explícitamente después de setAudioSource
+      // o simplemente esperar a que el estado sea 'ready'.
+      if (Platform.isWindows) {
+        print(
+          'DEBUG_PLAY: Esperando a que el player esté cargado (Windows)...',
+        );
+        await _player.load();
+      }
+
+      print('DEBUG_PLAY: Archivo cargado satisfactoriamente.');
+
+      // Intentar obtener el artwork de forma segura
+      try {
+        final artUri = await _getArtworkUri(track);
+        mediaItem.add(
+          MediaItem(
+            id: track.id,
+            title: track.title,
+            artist: track.artist,
+            album: track.album ?? 'Álbum Desconocido',
+            duration: track.duration ?? _player.duration,
+            artUri: artUri,
+          ),
+        );
+      } catch (artworkError) {
+        print('DEBUG_PLAY: Error (no fatal) al cargar artwork: $artworkError');
+        // Continuar sin artwork
+        mediaItem.add(
+          MediaItem(
+            id: track.id,
+            title: track.title,
+            artist: track.artist,
+            album: track.album ?? 'Álbum Desconocido',
+            duration: track.duration ?? _player.duration,
+          ),
+        );
+      }
+
       _broadcastState();
-    } catch (e) {
-      print('Error al cargar la pista: $e');
+    } catch (e, stack) {
+      print('DEBUG_PLAY: ERROR CRÍTICO al cargar la pista: $e');
+      print('DEBUG_PLAY: StackTrace: $stack');
     }
   }
 
@@ -294,8 +353,33 @@ class MusicAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> play() async {
-    await _player.play();
-    _broadcastState();
+    try {
+      print('DEBUG_PLAY: Llamando a _player.play()');
+
+      // En Windows, a veces la transición de loading a playing falla si es muy rápida
+      if (Platform.isWindows) {
+        // Esperar un momento corto para asegurar que el estado se estabilice
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // Si aún está cargando, esperar un poco más o delegar al stream
+        if (_player.processingState == ProcessingState.loading ||
+            _player.processingState == ProcessingState.buffering) {
+          print(
+            'DEBUG_PLAY: Player aún cargando, esperando a que esté listo...',
+          );
+          // Opcional: podrías esperar al stream, pero play() ya debería manejarlo internamente.
+          // Sin embargo, en Windows a veces necesita un empujón extra.
+        }
+      }
+
+      await _player.play();
+      _broadcastState();
+      print(
+        'DEBUG_PLAY: _player.play() ejecutado con éxito. playing=${_player.playing}',
+      );
+    } catch (e) {
+      print('DEBUG_PLAY: Error en play(): $e');
+    }
   }
 
   @override

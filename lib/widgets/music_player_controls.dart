@@ -35,7 +35,7 @@ class MusicPlayerControls extends ConsumerWidget {
   ) {
     final theme = Theme.of(context);
     return Container(
-      height: 120,
+      height: 125,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.only(
@@ -47,7 +47,7 @@ class MusicPlayerControls extends ConsumerWidget {
         children: [
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
                 children: [
                   Row(
@@ -118,16 +118,28 @@ class MusicPlayerControls extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  LinearProgressIndicator(
-                    value: state.progress,
-                    backgroundColor: theme.brightness == Brightness.dark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.black.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(2),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Theme.of(context).colorScheme.primary,
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      padding: EdgeInsets.zero,
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 6,
+                      ),
+                      overlayShape: const RoundSliderOverlayShape(
+                        overlayRadius: 14,
+                      ),
                     ),
-                    minHeight: 4,
+                    child: Slider(
+                      activeColor: Theme.of(context).colorScheme.primary,
+                      inactiveColor: Colors.grey,
+                      value: state.progress.clamp(0.0, 1.0),
+                      onChanged: (value) {
+                        if (state.duration != null) {
+                          final position = state.duration! * value;
+                          notifier.seek(position);
+                        }
+                      },
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -173,6 +185,7 @@ class MusicPlayerControls extends ConsumerWidget {
               SliderTheme(
                 data: SliderTheme.of(context).copyWith(
                   trackHeight: 3,
+                  padding: EdgeInsets.zero,
                   thumbShape: const RoundSliderThumbShape(
                     enabledThumbRadius: 6,
                   ),

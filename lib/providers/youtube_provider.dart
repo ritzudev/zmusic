@@ -6,7 +6,9 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as amr;
 import 'package:zmusic/providers/music_library_provider.dart';
 import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:flutter_audio_tagger/flutter_audio_tagger.dart';
 
 part 'youtube_provider.g.dart';
 
@@ -345,7 +347,16 @@ class YouTubeDownload extends _$YouTubeDownload {
       final extension = audioStream.container.name == 'mp4'
           ? 'm4a'
           : audioStream.container.name;
-      final directory = Directory('/storage/emulated/0/Download/ZMusic');
+      final String downloadPath;
+      if (Platform.isAndroid) {
+        downloadPath = '/storage/emulated/0/Download/ZMusic';
+      } else {
+        // Para Windows/otros, usar la carpeta de Documentos
+        final docsDir = await getApplicationDocumentsDirectory();
+        downloadPath = '${docsDir.path}/ZMusic';
+      }
+
+      final directory = Directory(downloadPath);
       if (!await directory.exists()) {
         await directory.create(recursive: true);
         print('YT_DEBUG: Directorio creado: ${directory.path}');

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zmusic/providers/theme_provider.dart';
@@ -18,7 +19,12 @@ Future<void> homeWidgetBackgroundCallback(Uri? uri) async {
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  HomeWidget.registerInteractivityCallback(homeWidgetBackgroundCallback);
+
+  // HomeWidget es solo para Android e iOS
+  if (Platform.isAndroid || Platform.isIOS) {
+    HomeWidget.registerInteractivityCallback(homeWidgetBackgroundCallback);
+  }
+
   runApp(const ProviderScope(child: MainApp()));
 }
 
@@ -33,7 +39,9 @@ class _MainAppState extends ConsumerState<MainApp> {
   @override
   void initState() {
     super.initState();
-    _setupHomeWidgetListener();
+    if (Platform.isAndroid || Platform.isIOS) {
+      _setupHomeWidgetListener();
+    }
   }
 
   void _setupHomeWidgetListener() {

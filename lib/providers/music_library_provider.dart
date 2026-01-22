@@ -6,6 +6,8 @@ import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:audio_metadata_reader/audio_metadata_reader.dart' as amr;
+import 'package:path_provider/path_provider.dart';
 
 part 'music_library_provider.g.dart';
 
@@ -14,6 +16,7 @@ class MusicLibrary extends _$MusicLibrary {
   final OnAudioQuery _audioQuery = OnAudioQuery();
   static const String _cacheKey = 'music_library_cache';
   static const String _lastScanKey = 'last_scan_timestamp';
+  static const String _customFolderKey = 'custom_music_folder';
 
   @override
   List<MusicTrack> build() {
@@ -164,52 +167,161 @@ class MusicLibrary extends _$MusicLibrary {
     }
   }
 
-  // Consultar todas las canciones usando on_audio_query_pluse
+  // Consultar todas las canciones usando on_audio_query_pluse o escaneo manual
   Future<List<MusicTrack>> querySongs() async {
     try {
-      final List<MusicTrack> songs = [];
+      if (Platform.isAndroid || Platform.isIOS) {
+        final List<MusicTrack> songs = [];
+        final audioSongs = await _audioQuery.querySongs(
+          sortType: SongSortType.TITLE,
+          orderType: OrderType.ASC_OR_SMALLER,
+          uriType: UriType.EXTERNAL,
+          ignoreCase: true,
+        );
 
-      // Obtener todas las canciones del dispositivo
-      final audioSongs = await _audioQuery.querySongs(
-        sortType: SongSortType.TITLE,
-        orderType: OrderType.ASC_OR_SMALLER,
-        uriType: UriType.EXTERNAL,
-        ignoreCase: true,
-      );
+        for (var audioSong in audioSongs) {
+          if (!_isMusicFile(audioSong)) continue;
 
-      for (var audioSong in audioSongs) {
-        // Filtrar archivos que no son música
-        if (!_isMusicFile(audioSong)) {
+          songs.add(
+            MusicTrack(
+              id: audioSong.id.toString(),
+              songId: audioSong.id,
+              albumId: audioSong.albumId,
+              title: audioSong.title,
+              artist: audioSong.artist ?? 'Artista Desconocido',
+              filePath: audioSong.data,
+              duration: Duration(milliseconds: audioSong.duration ?? 0),
+              album: audioSong.album,
+              size: audioSong.size,
+            ),
+          );
+        }
+        return songs;
+      } else {
+        // Windows/Desktop
+        return await _manualScanWindows();
+      }
+    } catch (e) {
+      print('Error en querySongs: $e');
+      return [];
+    }
+  }
+
+  // Escaneo manual para plataformas que no soportan on_audio_query (Windows)
+  Future<List<MusicTrack>> _manualScanWindows() async {
+    final List<MusicTrack> results = [];
+    final List<String> pathsToScan = [];
+
+    try {
+      // 1. Obtener carpeta personalizada si existe
+      final prefs = await SharedPreferences.getInstance();
+      final customPath = prefs.getString(_customFolderKey);
+      if (customPath != null && customPath.isNotEmpty) {
+        pathsToScan.add(customPath);
+      }
+
+      // 2. Obtener carpetas estándar (como fallback o adicionales)
+      final docsDir = await getApplicationDocumentsDirectory();
+      pathsToScan.add('${docsDir.path}/ZMusic');
+
+      try {
+        final downloadsDir = await getDownloadsDirectory();
+        if (downloadsDir != null) {
+          pathsToScan.add('${downloadsDir.path}/ZMusic');
+        }
+      } catch (_) {}
+
+      print('DEBUG_SCAN: Escaneando rutas: $pathsToScan');
+
+      for (var path in pathsToScan) {
+        final dir = Directory(path);
+        if (!await dir.exists()) {
+          print('DEBUG_SCAN: Carpeta no existe: $path');
           continue;
         }
 
-        final song = MusicTrack(
-          id: audioSong.id.toString(),
-          songId: audioSong.id,
-          albumId: audioSong.albumId,
-          title: audioSong.title,
-          artist: audioSong.artist ?? 'Artista Desconocido',
-          filePath: audioSong.data,
-          duration: Duration(milliseconds: audioSong.duration ?? 0),
-          album: audioSong.album,
-          size: audioSong.size,
+        // Usar list asíncrono para no bloquear el UI
+        final Stream<FileSystemEntity> entityStream = dir.list(
+          recursive: true,
+          followLinks: false,
         );
+        int processedCount = 0;
 
-        songs.add(song);
+        await for (var entity in entityStream) {
+          if (entity is File) {
+            final ext = entity.path.toLowerCase();
+            if (ext.endsWith('.mp3') ||
+                ext.endsWith('.m4a') ||
+                ext.endsWith('.flac') ||
+                ext.endsWith('.wav')) {
+              processedCount++;
+
+              // Cada 20 archivos, un pequeño respiro para el UI
+              if (processedCount % 20 == 0) {
+                await Future.delayed(Duration.zero);
+              }
+
+              try {
+                final file = entity;
+                final stats = await file.stat();
+                final fileName = file.path
+                    .split(Platform.pathSeparator)
+                    .last
+                    .replaceAll(RegExp(r'\.[^.]+$'), '');
+
+                // Intentar leer metadatos reales
+                String title = fileName;
+                String artist = 'Artista Desconocido';
+                Duration duration = const Duration(minutes: 3);
+                String? album;
+
+                try {
+                  // amr = audio_metadata_reader
+                  final metadata = amr.readMetadata(file, getImage: false);
+                  if (metadata.title != null && metadata.title!.isNotEmpty)
+                    title = metadata.title!;
+                  if (metadata.artist != null && metadata.artist!.isNotEmpty)
+                    artist = metadata.artist!;
+                  if (metadata.album != null && metadata.album!.isNotEmpty)
+                    album = metadata.album!;
+                  if (metadata.duration != null) duration = metadata.duration!;
+                } catch (e) {
+                  // Fallback silencioso si un archivo falla
+                }
+
+                results.add(
+                  MusicTrack(
+                    id: file.path,
+                    songId: file.path.hashCode,
+                    title: title,
+                    artist: artist,
+                    filePath: file.path,
+                    duration: duration,
+                    album: album,
+                    size: stats.size,
+                  ),
+                );
+              } catch (e) {
+                print('Error crítico procesando ${entity.path}: $e');
+              }
+            }
+          }
+        }
       }
-
-      return songs;
     } catch (e) {
-      return [];
+      print('Error en escaneo manual Windows: $e');
     }
+    return results;
   }
 
   // Verificar si un archivo de audio es música real
   bool _isMusicFile(SongModel audioSong) {
     // 1. Verificar duración mínima (30 segundos = 30000 ms)
-    // Esto excluye tonos de notificación y alarmas que suelen ser muy cortos
-    if (audioSong.duration == null || audioSong.duration! < 30000) {
-      return false;
+    // En Windows omitimos esta verificación por ahora o si es 0 (escaneo manual)
+    if (!Platform.isWindows) {
+      if (audioSong.duration == null || audioSong.duration! < 30000) {
+        return false;
+      }
     }
 
     // 2. Verificar que tenga una ruta válida
@@ -345,5 +457,31 @@ class MusicLibrary extends _$MusicLibrary {
   // Refrescar la biblioteca (volver a escanear)
   Future<String> refreshLibrary() async {
     return await scanDeviceMusic();
+  }
+
+  // Windows: Seleccionar carpeta personalizada y escanear
+  Future<String> pickFolderAndScan() async {
+    if (!Platform.isWindows) return 'Solo disponible en Windows';
+
+    try {
+      String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Selecciona tu carpeta de música',
+      );
+
+      if (selectedDirectory != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_customFolderKey, selectedDirectory);
+        return await scanDeviceMusic();
+      }
+      return 'No se seleccionó ninguna carpeta';
+    } catch (e) {
+      return 'Error al seleccionar carpeta: $e';
+    }
+  }
+
+  // Obtener ruta de la carpeta personalizada actual
+  Future<String?> getCustomFolderPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_customFolderKey);
   }
 }

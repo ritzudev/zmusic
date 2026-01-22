@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
@@ -404,6 +405,29 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
             backgroundColor: theme.colorScheme.primary,
             child: Icon(Icons.refresh, color: Colors.white),
           ),
+          if (Platform.isWindows) ...[
+            const SizedBox(height: 16),
+            FloatingActionButton(
+              heroTag: 'folder_button',
+              onPressed: _isLoading
+                  ? null
+                  : () async {
+                      setState(() => _isLoading = true);
+                      final message = await ref
+                          .read(musicLibraryProvider.notifier)
+                          .pickFolderAndScan();
+                      setState(() => _isLoading = false);
+                      if (mounted) {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(message)));
+                      }
+                    },
+              tooltip: 'Seleccionar carpeta de música',
+              backgroundColor: Colors.orangeAccent,
+              child: Icon(Icons.folder_open, color: Colors.white),
+            ),
+          ],
         ],
       ),
       bottomNavigationBar: SafeArea(

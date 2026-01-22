@@ -228,7 +228,11 @@ class AudioPlayer extends _$AudioPlayer {
 
       state = state.copyWith(isLoading: true);
 
-      await _handler!.setPlaylist(tracks, initialIndex: initialIndex);
+      await _handler!.setPlaylist(
+        tracks,
+        initialIndex: initialIndex,
+        playImmediately: true,
+      );
 
       state = state.copyWith(
         playlist: tracks,
@@ -236,8 +240,6 @@ class AudioPlayer extends _$AudioPlayer {
         currentTrack: tracks.isNotEmpty ? tracks[initialIndex] : null,
         isLoading: false,
       );
-
-      await _handler!.play();
     } catch (e) {
       print('Error al establecer playlist: $e');
       state = state.copyWith(isLoading: false);
