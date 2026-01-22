@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -13,6 +14,7 @@ class MusicAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   final AudioPlayer _player = AudioPlayer();
   final OnAudioQuery _audioQuery = OnAudioQuery();
+  final List<StreamSubscription> _subscriptions = [];
 
   // Lista de reproducción actual
   List<MusicTrack> _playlist = [];
@@ -47,40 +49,48 @@ class MusicAudioHandler extends BaseAudioHandler
 
   void _init() {
     // Escuchar cambios en el estado de reproducción
-    _player.playbackEventStream.listen((event) {
-      _broadcastState();
-    });
+    _subscriptions.add(
+      _player.playbackEventStream.listen((event) {
+        _broadcastState();
+      }),
+    );
 
     // Escuchar cuando termina una canción
-    _player.processingStateStream.listen((state) {
-      if (state == ProcessingState.completed) {
-        _handleSongCompleted();
-      }
-    });
+    _subscriptions.add(
+      _player.processingStateStream.listen((state) {
+        if (state == ProcessingState.completed) {
+          _handleSongCompleted();
+        }
+      }),
+    );
 
     // Escuchar cambios en la posición
-    _player.positionStream.listen((position) {
-      final oldState = playbackState.value;
-      playbackState.add(oldState.copyWith(updatePosition: position));
-    });
+    _subscriptions.add(
+      _player.positionStream.listen((position) {
+        final oldState = playbackState.value;
+        playbackState.add(oldState.copyWith(updatePosition: position));
+      }),
+    );
 
     // Escuchar cambios en la duración
-    _player.durationStream.listen((duration) async {
-      if (duration != null && _currentIndex < _playlist.length) {
-        final track = _playlist[_currentIndex];
-        final artUri = await _getArtworkUri(track);
-        mediaItem.add(
-          MediaItem(
-            id: track.id,
-            title: track.title,
-            artist: track.artist,
-            album: track.album ?? 'Álbum Desconocido',
-            duration: duration,
-            artUri: artUri,
-          ),
-        );
-      }
-    });
+    _subscriptions.add(
+      _player.durationStream.listen((duration) async {
+        if (duration != null && _currentIndex < _playlist.length) {
+          final track = _playlist[_currentIndex];
+          final artUri = await _getArtworkUri(track);
+          mediaItem.add(
+            MediaItem(
+              id: track.id,
+              title: track.title,
+              artist: track.artist,
+              album: track.album ?? 'Álbum Desconocido',
+              duration: duration,
+              artUri: artUri,
+            ),
+          );
+        }
+      }),
+    );
   }
 
   /// Obtener URI del artwork para la notificación
@@ -498,6 +508,14 @@ class MusicAudioHandler extends BaseAudioHandler
   /// Stream del estado de reproducción
   Stream<bool> get playingStream => _player.playingStream;
 
+  /// Stream del volumen
+  Stream<double> get volumeStream => _player.volumeStream;
+
+  /// Establecer el volumen (0.0 a 1.0)
+  Future<void> setVolume(double volume) async {
+    await _player.setVolume(volume);
+  }
+
   @override
   Future<void> onTaskRemoved() async {
     // NO detener la reproducción cuando se cierra la app desde recientes
@@ -593,6 +611,20 @@ class MusicAudioHandler extends BaseAudioHandler
 
   /// Liberar recursos
   Future<void> dispose() async {
-    await _player.dispose();
+    // Cancelar todas las suscripciones primero
+    for (final sub in _subscriptions) {
+      await sub.cancel();
+    }
+    _subscriptions.clear();
+
+    // Detener y liberar el reproductor de forma segura
+    try {
+      if (_player.playing) {
+        await _player.stop();
+      }
+      await _player.dispose();
+    } catch (e) {
+      print('Error al liberar el reproductor: $e');
+    }
   }
 }

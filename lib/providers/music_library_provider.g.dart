@@ -41,7 +41,7 @@ final class MusicLibraryProvider
   }
 }
 
-String _$musicLibraryHash() => r'e61e83cfde0db73d22bf6476aa7bc26c656f9dd0';
+String _$musicLibraryHash() => r'6c84d62dfd5ce0d3a0dea9f96db221affbac7aa6';
 
 abstract class _$MusicLibrary extends $Notifier<List<MusicTrack>> {
   List<MusicTrack> build();

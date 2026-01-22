@@ -90,7 +90,7 @@ final class AudioPlayerProvider
   }
 }
 
-String _$audioPlayerHash() => r'b5242d1f8cb9c3f111a2bf06593d829946496e1c';
+String _$audioPlayerHash() => r'b36384fca428019422120792b07c311172a53588';
 
 /// Provider del estado del reproductor
 

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zmusic/models/repeat_mode.dart';
@@ -247,6 +248,51 @@ class NowPlayingScreen extends ConsumerWidget {
                         ],
                       ),
                     ),
+
+                    if (Platform.isWindows) ...[
+                      const SizedBox(height: 32),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.volume_down,
+                              size: 20,
+                              color: theme.colorScheme.onSurface.withOpacity(
+                                0.6,
+                              ),
+                            ),
+                            Expanded(
+                              child: Consumer(
+                                builder: (context, ref, _) {
+                                  final volume = ref.watch(
+                                    audioPlayerProvider.select((s) => s.volume),
+                                  );
+                                  return Slider(
+                                    value: volume,
+                                    onChanged: (value) {
+                                      ref
+                                          .read(audioPlayerProvider.notifier)
+                                          .setVolume(value);
+                                    },
+                                    activeColor: theme.colorScheme.primary,
+                                    inactiveColor: theme.colorScheme.primary
+                                        .withOpacity(0.2),
+                                  );
+                                },
+                              ),
+                            ),
+                            Icon(
+                              Icons.volume_up,
+                              size: 20,
+                              color: theme.colorScheme.onSurface.withOpacity(
+                                0.6,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

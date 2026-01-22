@@ -87,7 +87,7 @@ final class YouTubeDownloadProvider
   }
 }
 
-String _$youTubeDownloadHash() => r'5cfd61bf7fca1ef89e124f7c94b0dacfb91e8c3f';
+String _$youTubeDownloadHash() => r'8e690e74310a54fb50be6c92928b1dedfc821249';
 
 abstract class _$YouTubeDownload extends $Notifier<DownloadState?> {
   DownloadState? build();

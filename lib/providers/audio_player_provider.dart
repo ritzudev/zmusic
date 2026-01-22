@@ -54,6 +54,7 @@ class AudioPlayerState {
   final bool isLoading;
   final RepeatMode repeatMode;
   final bool isShuffleEnabled;
+  final double volume;
 
   const AudioPlayerState({
     this.currentTrack,
@@ -65,6 +66,7 @@ class AudioPlayerState {
     this.isLoading = false,
     this.repeatMode = RepeatMode.none,
     this.isShuffleEnabled = false,
+    this.volume = 1.0,
   });
 
   AudioPlayerState copyWith({
@@ -77,6 +79,7 @@ class AudioPlayerState {
     bool? isLoading,
     RepeatMode? repeatMode,
     bool? isShuffleEnabled,
+    double? volume,
   }) {
     return AudioPlayerState(
       currentTrack: currentTrack ?? this.currentTrack,
@@ -88,6 +91,7 @@ class AudioPlayerState {
       isLoading: isLoading ?? this.isLoading,
       repeatMode: repeatMode ?? this.repeatMode,
       isShuffleEnabled: isShuffleEnabled ?? this.isShuffleEnabled,
+      volume: volume ?? this.volume,
     );
   }
 
@@ -156,6 +160,12 @@ class AudioPlayer extends _$AudioPlayer {
         state = state.copyWith(duration: duration);
       });
       _subscriptions.add(durationSub);
+
+      // Escuchar cambios en el volumen
+      final volumeSub = _handler!.volumeStream.listen((volume) {
+        state = state.copyWith(volume: volume);
+      });
+      _subscriptions.add(volumeSub);
 
       // Escuchar cambios en el mediaItem
       final mediaItemSub = _handler!.mediaItem.listen((mediaItem) {
@@ -392,6 +402,16 @@ class AudioPlayer extends _$AudioPlayer {
       await _handler!.setShuffleMode(shuffleMode);
     } catch (e) {
       print('Error al alternar modo aleatorio: $e');
+    }
+  }
+
+  /// Establecer volumen
+  Future<void> setVolume(double volume) async {
+    try {
+      await _ensureHandlerReady();
+      await _handler!.setVolume(volume);
+    } catch (e) {
+      print('Error al establecer volumen: $e');
     }
   }
 }
