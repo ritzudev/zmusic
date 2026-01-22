@@ -11,6 +11,7 @@ import 'package:zmusic/widgets/artwork_widget.dart';
 import 'package:zmusic/widgets/music_player_controls.dart';
 import 'package:zmusic/widgets/download_status_bar.dart';
 import 'package:zmusic/providers/youtube_provider.dart';
+import 'package:zmusic/screens/home/home_windows.dart';
 
 class MusicHomeScreen extends ConsumerStatefulWidget {
   const MusicHomeScreen({super.key});
@@ -105,6 +106,20 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Si estamos en Windows y hay más de 900px de ancho, usar la vista de escritorio avanzada
+        if (Platform.isWindows && constraints.maxWidth > 900) {
+          return const HomeWindows();
+        }
+
+        // De lo contrario, usar la vista móvil original (contenida en _buildMobileHome)
+        return _buildMobileHome(context);
+      },
+    );
+  }
+
+  Widget _buildMobileHome(BuildContext context) {
     final theme = Theme.of(context);
     final filteredSongsList = ref.watch(filteredSongsProvider);
     final searchQuery = ref.watch(musicSearchQueryProvider);
@@ -203,25 +218,6 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                             ),
                           ],
                         ),
-                      // Botón Debug (Metadatos)
-                      /* Container(
-                        height: 50,
-                        width: 50,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.tertiary,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: IconButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/tagger-test');
-                          },
-                          icon: const Icon(
-                            Icons.bug_report,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8), */
                       const SizedBox(width: 8),
                       Container(
                         height: 50,
