@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:smtc_windows/smtc_windows.dart';
+import 'package:windows_taskbar/windows_taskbar.dart';
 import 'package:zmusic/models/song_model.dart';
 
 /// Servicio de audio que maneja la reproducción en segundo plano
@@ -261,6 +262,7 @@ class MusicAudioHandler extends BaseAudioHandler
     );
     _updateHomeWidget();
     _updateSMTC();
+    _updateTaskbar();
   }
 
   /// Actualizar el estado de SMTC en Windows
@@ -292,6 +294,37 @@ class MusicAudioHandler extends BaseAudioHandler
       );
     } catch (e) {
       print('Error al actualizar SMTC: $e');
+    }
+  }
+
+  /// Actualizar los botones de la barra de tareas en Windows
+  Future<void> _updateTaskbar() async {
+    if (!Platform.isWindows) return;
+
+    try {
+      final isPlaying = _player.playing;
+
+      await WindowsTaskbar.setThumbnailToolbar([
+        ThumbnailToolbarButton(
+          ThumbnailToolbarAssetIcon('assets/back.ico'),
+          'Anterior',
+          () => skipToPrevious(),
+        ),
+        ThumbnailToolbarButton(
+          ThumbnailToolbarAssetIcon(
+            isPlaying ? 'assets/pause.ico' : 'assets/play.ico',
+          ),
+          isPlaying ? 'Pausar' : 'Reproducir',
+          () => togglePlayPause(),
+        ),
+        ThumbnailToolbarButton(
+          ThumbnailToolbarAssetIcon('assets/next.ico'),
+          'Siguiente',
+          () => skipToNext(),
+        ),
+      ]);
+    } catch (e) {
+      print('Error al actualizar barra de tareas: $e');
     }
   }
 

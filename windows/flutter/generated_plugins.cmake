@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   just_audio_windows
   permission_handler_windows
+  windows_taskbar
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
