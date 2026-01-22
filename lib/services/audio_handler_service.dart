@@ -8,6 +8,7 @@ import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:smtc_windows/smtc_windows.dart';
 import 'package:windows_taskbar/windows_taskbar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zmusic/models/song_model.dart';
 
 /// Servicio de audio que maneja la reproducción en segundo plano
@@ -18,6 +19,7 @@ class MusicAudioHandler extends BaseAudioHandler
   final OnAudioQuery _audioQuery = OnAudioQuery();
   final List<StreamSubscription> _subscriptions = [];
   SMTCWindows? _smtc;
+  SharedPreferences? _prefs;
 
   // Lista de reproducción actual
   List<MusicTrack> _playlist = [];
@@ -103,6 +105,9 @@ class MusicAudioHandler extends BaseAudioHandler
         _broadcastState();
       }),
     );
+
+    // Cargar volumen guardado
+    _loadSavedVolume();
 
     // Escuchar cuando termina una canción
     _subscriptions.add(
@@ -628,6 +633,23 @@ class MusicAudioHandler extends BaseAudioHandler
   /// Establecer el volumen (0.0 a 1.0)
   Future<void> setVolume(double volume) async {
     await _player.setVolume(volume);
+
+    // Guardar volumen en preferencias
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs?.setDouble('player_volume', volume);
+  }
+
+  /// Cargar el volumen guardado en preferencias
+  Future<void> _loadSavedVolume() async {
+    try {
+      _prefs ??= await SharedPreferences.getInstance();
+      final savedVolume = _prefs?.getDouble('player_volume');
+      if (savedVolume != null) {
+        await _player.setVolume(savedVolume);
+      }
+    } catch (e) {
+      print('Error al cargar volumen guardado: $e');
+    }
   }
 
   @override
