@@ -5,6 +5,9 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   just_audio_windows
   permission_handler_windows
+  screen_retriever_windows
+  tray_manager
+  window_manager
   windows_taskbar
 )
 

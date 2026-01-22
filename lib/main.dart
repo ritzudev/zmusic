@@ -11,14 +11,20 @@ import 'package:zmusic/theme/app_theme.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:zmusic/providers/audio_player_provider.dart';
 
+import 'package:zmusic/services/window_service.dart';
+
 @pragma('vm:entry-point')
 Future<void> homeWidgetBackgroundCallback(Uri? uri) async {
   if (uri == null) return;
   debugPrint('TAG_DEBUG: [Widget Background Action] $uri');
 }
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isWindows) {
+    await WindowService().init();
+  }
 
   // HomeWidget es solo para Android e iOS
   if (Platform.isAndroid || Platform.isIOS) {

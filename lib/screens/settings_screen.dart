@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zmusic/providers/theme_provider.dart';
+import 'package:zmusic/services/window_service.dart';
 import 'package:zmusic/theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -127,6 +129,32 @@ class SettingsScreen extends ConsumerWidget {
                   },
                 ),
               ),
+              if (Platform.isWindows) ...[
+                const SizedBox(height: 24),
+                _buildSectionTitle(context, 'Windows'),
+                const SizedBox(height: 12),
+                Card(
+                  child: StatefulBuilder(
+                    builder: (context, setState) {
+                      return SwitchListTile(
+                        title: const Text('Cerrar minimiza a la bandeja'),
+                        subtitle: const Text(
+                          'Si se desactiva, la aplicación se cerrará por completo',
+                        ),
+                        secondary: Icon(
+                          Icons.window_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        value: WindowService().minimizeToTrayOnClose,
+                        onChanged: (val) async {
+                          await WindowService().setMinimizeToTray(val);
+                          setState(() {});
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 32),
               _buildSectionTitle(context, 'General'),
               const SizedBox(height: 12),

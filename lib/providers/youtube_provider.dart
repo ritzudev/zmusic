@@ -8,8 +8,6 @@ import 'package:zmusic/providers/music_library_provider.dart';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:flutter_audio_tagger/flutter_audio_tagger.dart';
-
 part 'youtube_provider.g.dart';
 
 class YouTubeVideoResult {
