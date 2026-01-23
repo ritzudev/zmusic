@@ -78,6 +78,6 @@ msix_config:
   display_name: Z Music
   publisher_display_name: Ritzu
   identity_name: com.ritzu.zmusic
-  msix_version: 0.1.0.3
+  msix_version: 0.1.0.9
   logo_path: assets/zmusic.png
   capabilities: internetClient, musicLibrary
