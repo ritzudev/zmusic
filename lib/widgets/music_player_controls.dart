@@ -290,6 +290,7 @@ class MusicPlayerControls extends ConsumerWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: SliderTheme(
                           data: SliderTheme.of(context).copyWith(
@@ -316,6 +317,7 @@ class MusicPlayerControls extends ConsumerWidget {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         _formatDuration(state.duration ?? Duration.zero),
                         style: theme.textTheme.bodySmall?.copyWith(

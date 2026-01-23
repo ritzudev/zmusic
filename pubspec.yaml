@@ -37,6 +37,8 @@ dependencies:
   flutter_audio_tagger: ^5.1.1
   home_widget: ^0.9.0
   google_fonts: ^7.1.0
+  media_kit: ^1.2.6
+  media_kit_libs_windows_audio: ^1.0.9
 
 dependency_overrides:
   freezed_annotation: ^3.0.0
@@ -51,6 +53,7 @@ dev_dependencies:
   custom_lint: ^0.8.0
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.4.3
+  msix: ^3.16.12
 
 flutter:
   uses-material-design: true
@@ -70,3 +73,11 @@ flutter_native_splash:
   android: true
   ios: true
   web: false
+
+msix_config:
+  display_name: Z Music
+  publisher_display_name: Ritzu
+  identity_name: com.ritzu.zmusic
+  msix_version: 0.1.0.3
+  logo_path: assets/zmusic.png
+  capabilities: internetClient, musicLibrary

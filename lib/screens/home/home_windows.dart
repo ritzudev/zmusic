@@ -359,9 +359,16 @@ class HomeWindows extends ConsumerWidget {
 
   Widget _buildVolumeControl(WidgetRef ref, ThemeData theme) {
     final volume = ref.watch(audioPlayerProvider.select((s) => s.volume));
+    IconData getVolumenIcon() {
+      if (volume == 0) return Icons.volume_off;
+      if (volume < 0.5) return Icons.volume_mute;
+      if (volume < 0.7) return Icons.volume_down;
+      return Icons.volume_up;
+    }
+
     return Row(
       children: [
-        const Icon(Icons.volume_up, color: Colors.grey, size: 20),
+        Icon(getVolumenIcon(), color: Colors.grey, size: 20),
         Expanded(
           child: Slider(
             value: volume,

@@ -10,7 +10,7 @@ import 'package:zmusic/screens/youtube_search_screen.dart';
 import 'package:zmusic/theme/app_theme.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:zmusic/providers/audio_player_provider.dart';
-
+import 'package:media_kit/media_kit.dart';
 import 'package:zmusic/services/window_service.dart';
 
 @pragma('vm:entry-point')
@@ -23,6 +23,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isWindows) {
+    MediaKit.ensureInitialized();
     await WindowService().init();
   }
 

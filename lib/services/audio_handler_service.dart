@@ -8,6 +8,7 @@ import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:smtc_windows/smtc_windows.dart';
 import 'package:windows_taskbar/windows_taskbar.dart';
+import 'package:media_kit/media_kit.dart' as mk;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zmusic/models/song_model.dart';
 
@@ -21,6 +22,9 @@ class MusicAudioHandler extends BaseAudioHandler
   SMTCWindows? _smtc;
   SharedPreferences? _prefs;
 
+  // Motor de audio para Windows
+  mk.Player? _mkPlayer;
+
   // Lista de reproducción actual
   List<MusicTrack> _playlist = [];
   List<MusicTrack> _originalPlaylist = []; // Playlist sin mezclar
@@ -30,6 +34,9 @@ class MusicAudioHandler extends BaseAudioHandler
   String? _placeholderPath;
 
   MusicAudioHandler() {
+    if (Platform.isWindows) {
+      _mkPlayer = mk.Player();
+    }
     _init();
     _preparePlaceholder();
     if (Platform.isWindows) {
@@ -55,6 +62,7 @@ class MusicAudioHandler extends BaseAudioHandler
       );
 
       _smtc?.buttonPressStream.listen((event) async {
+        print('DEBUG_SMTC: Botón presionado en Windows: $event');
         switch (event) {
           case PressedButton.play:
             await play();
@@ -75,6 +83,9 @@ class MusicAudioHandler extends BaseAudioHandler
             break;
         }
       });
+
+      // Forzar estado inicial para que Windows habilite los botones
+      await _smtc?.setPlaybackStatus(PlaybackStatus.paused);
     } catch (e) {
       print('Error al inicializar SMTC para Windows: $e');
     }
@@ -112,11 +123,57 @@ class MusicAudioHandler extends BaseAudioHandler
     // Escuchar cuando termina una canción
     _subscriptions.add(
       _player.processingStateStream.listen((state) {
-        if (state == ProcessingState.completed) {
+        if (!Platform.isWindows && state == ProcessingState.completed) {
           _handleSongCompleted();
         }
       }),
     );
+
+    // Escuchar cuando termina una canción en Media Kit (Windows)
+    if (Platform.isWindows) {
+      _mkPlayer?.stream.completed.listen((completed) {
+        if (completed) {
+          _handleSongCompleted();
+        }
+      });
+
+      _mkPlayer?.stream.position.listen((position) {
+        final oldState = playbackState.value;
+        playbackState.add(oldState.copyWith(updatePosition: position));
+      });
+
+      _mkPlayer?.stream.duration.listen((duration) async {
+        if (_currentIndex < _playlist.length) {
+          final track = _playlist[_currentIndex];
+          final artUri = await _getArtworkUri(track);
+
+          // Actualizar AudioService (Interfaz Flutter)
+          mediaItem.add(
+            MediaItem(
+              id: track.id,
+              title: track.title,
+              artist: track.artist,
+              album: track.album ?? 'Álbum Desconocido',
+              duration: duration,
+              artUri: artUri,
+            ),
+          );
+
+          // Actualizar Windows SMTC (Barra de Windows)
+          _updateSMTCMetadata();
+          _updateSMTCTimeline();
+        }
+      });
+
+      _mkPlayer?.stream.playing.listen((isPlaying) {
+        _broadcastState();
+        _updateSMTCTimeline(); // Sincronizar slider al pausar/reproducir
+      });
+
+      _mkPlayer?.stream.volume.listen((volume) {
+        _broadcastState();
+      });
+    }
 
     // Escuchar cambios en la posición
     _subscriptions.add(
@@ -152,15 +209,13 @@ class MusicAudioHandler extends BaseAudioHandler
     try {
       Uint8List? artworkBytes;
 
-      // Solo consultar artwork via MediaStore/OnAudioQuery en móviles
-      if (Platform.isAndroid || Platform.isIOS) {
-        artworkBytes = await _audioQuery.queryArtwork(
-          track.albumId ?? track.songId,
-          track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
-          format: ArtworkFormat.JPEG,
-          size: 200, // Tamaño pequeño solo para verificación rápida
-        );
-      }
+      // Consultar artwork. En móviles usa MediaStore, en Windows lo extrae directamente del archivo.
+      artworkBytes = await _audioQuery.queryArtwork(
+        track.albumId ?? track.songId,
+        track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
+        format: ArtworkFormat.JPEG,
+        size: 500, // Tamaño mayor para que se vea bien en Windows
+      );
 
       // Si existe artwork (bytes no nulos y no vacíos)
       if (artworkBytes != null && artworkBytes.isNotEmpty) {
@@ -175,15 +230,22 @@ class MusicAudioHandler extends BaseAudioHandler
             );
           }
         } else {
-          // Para Windows/otros, guardar a archivo temporal y devolver uri de archivo
-          final directory = await getTemporaryDirectory();
-          final artworkPath =
-              '${directory.path}/thumb_${track.id.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')}.jpg';
+          // Para Windows, usar una ruta absoluta muy clara y asegurar que el archivo sea JPEG
+          final directory = await getApplicationSupportDirectory();
+          final artworkPath = '${directory.path}\\last_track_thumb.jpg';
           final file = File(artworkPath);
-          if (!await file.exists()) {
-            await file.writeAsBytes(artworkBytes);
+
+          // Borrar el anterior para evitar que Windows use caché vieja
+          if (await file.exists()) {
+            await file.delete();
           }
-          return Uri.file(artworkPath);
+
+          await file.writeAsBytes(artworkBytes);
+
+          // Debug para confirmar que se guardó
+          print('DEBUG_ARTWORK: Carátula guardada en: ${file.absolute.path}');
+
+          return Uri.file(file.absolute.path);
         }
       }
 
@@ -257,27 +319,70 @@ class MusicAudioHandler extends BaseAudioHandler
           ProcessingState.ready: AudioProcessingState.ready,
           ProcessingState.completed: AudioProcessingState.completed,
         }[_player.processingState]!,
-        playing: _player.playing,
-        updatePosition: _player.position,
-        bufferedPosition: _player.bufferedPosition,
-        speed: _player.speed,
+        playing: Platform.isWindows
+            ? (_mkPlayer?.state.playing ?? false)
+            : _player.playing,
+        updatePosition: Platform.isWindows
+            ? (_mkPlayer?.state.position ?? Duration.zero)
+            : _player.position,
+        bufferedPosition: Platform.isWindows
+            ? (_mkPlayer?.state.buffer ?? Duration.zero)
+            : _player.bufferedPosition,
+        speed: Platform.isWindows
+            ? (_mkPlayer?.state.rate ?? 1.0)
+            : _player.speed,
         queueIndex: _currentIndex,
         repeatMode: _repeatMode,
       ),
     );
     _updateHomeWidget();
-    _updateSMTC();
+    // En Windows, solo actualizamos el estado (play/pause), NO los metadatos.
+    // Los metadatos los actualizamos solo cuando cambia la canción para no saturar al sistema.
+    _updateSMTCStatusOnly();
     _updateTaskbar();
   }
 
-  /// Actualizar el estado de SMTC en Windows
-  Future<void> _updateSMTC() async {
+  /// Actualizar SOLO el estado de reproducción de SMTC (play/pause)
+  Future<void> _updateSMTCStatusOnly() async {
+    if (!Platform.isWindows || _smtc == null) return;
+    try {
+      final isPlaying = _mkPlayer?.state.playing ?? false;
+      // Actualizar estado de reproducción
+      await _smtc?.setPlaybackStatus(
+        isPlaying ? PlaybackStatus.playing : PlaybackStatus.paused,
+      );
+    } catch (e) {
+      print('Error al actualizar estado SMTC: $e');
+    }
+  }
+
+  /// Actualizar la LÍNEA DE TIEMPO de Windows (Slider y posición)
+  Future<void> _updateSMTCTimeline() async {
+    if (!Platform.isWindows || _smtc == null) return;
+    try {
+      final state = _mkPlayer?.state;
+      if (state != null) {
+        await _smtc?.updateTimeline(
+          PlaybackTimeline(
+            startTimeMs: 0,
+            endTimeMs: state.duration.inMilliseconds,
+            positionMs: state.position.inMilliseconds,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error al actualizar línea de tiempo SMTC: $e');
+    }
+  }
+
+  /// Actualizar los METADATOS completos de SMTC (Título, artista, carátula)
+  /// Solo se llama cuando cambia la canción.
+  Future<void> _updateSMTCMetadata() async {
     if (!Platform.isWindows || _smtc == null) return;
 
     try {
       final track = currentTrack;
       if (track != null) {
-        // Obtener URI de artwork (para Windows es un archivo local)
         final artUri = await _getArtworkUri(track);
         String? thumbPath;
         if (artUri != null && artUri.isScheme('file')) {
@@ -293,12 +398,8 @@ class MusicAudioHandler extends BaseAudioHandler
           ),
         );
       }
-
-      await _smtc?.setPlaybackStatus(
-        _player.playing ? PlaybackStatus.playing : PlaybackStatus.paused,
-      );
     } catch (e) {
-      print('Error al actualizar SMTC: $e');
+      print('Error al actualizar metadatos SMTC: $e');
     }
   }
 
@@ -307,7 +408,7 @@ class MusicAudioHandler extends BaseAudioHandler
     if (!Platform.isWindows) return;
 
     try {
-      final isPlaying = _player.playing;
+      final isPlaying = _mkPlayer?.state.playing ?? false;
 
       await WindowsTaskbar.setThumbnailToolbar([
         ThumbnailToolbarButton(
@@ -432,29 +533,23 @@ class MusicAudioHandler extends BaseAudioHandler
     final track = _playlist[index];
 
     try {
-      print('DEBUG_PLAY: Seteando ruta en el player: ${track.filePath}');
-
-      final uri = Uri.file(track.filePath);
-      print('DEBUG_PLAY: URI generado: ${uri.toString()}');
-
-      // En Windows, setAudioSource a veces no dispara el inicio de la reproducción correctamente
-      // si se llama inmediatamente a play(). Asegurarse de que el source se establezca bien.
-      await _player.setAudioSource(
-        AudioSource.uri(uri),
-        initialPosition: Duration.zero,
-        preload: true,
-      );
-
-      // En Windows, a veces es útil llamar a load() explícitamente después de setAudioSource
-      // o simplemente esperar a que el estado sea 'ready'.
       if (Platform.isWindows) {
-        print(
-          'DEBUG_PLAY: Esperando a que el player esté cargado (Windows)...',
+        await _mkPlayer?.open(mk.Media(track.filePath));
+      } else {
+        final uri = Uri.file(track.filePath);
+        await _player.setAudioSource(
+          AudioSource.uri(uri),
+          initialPosition: Duration.zero,
+          preload: true,
         );
-        await _player.load();
       }
 
       print('DEBUG_PLAY: Archivo cargado satisfactoriamente.');
+
+      // En Windows, actualizamos metadatos pesados (imagen) solo al cargar la pista
+      if (Platform.isWindows) {
+        _updateSMTCMetadata();
+      }
 
       // Intentar obtener el artwork de forma segura
       try {
@@ -499,29 +594,12 @@ class MusicAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     try {
-      print('DEBUG_PLAY: Llamando a _player.play()');
-
-      // En Windows, a veces la transición de loading a playing falla si es muy rápida
       if (Platform.isWindows) {
-        // Esperar un momento corto para asegurar que el estado se estabilice
-        await Future.delayed(const Duration(milliseconds: 100));
-
-        // Si aún está cargando, esperar un poco más o delegar al stream
-        if (_player.processingState == ProcessingState.loading ||
-            _player.processingState == ProcessingState.buffering) {
-          print(
-            'DEBUG_PLAY: Player aún cargando, esperando a que esté listo...',
-          );
-          // Opcional: podrías esperar al stream, pero play() ya debería manejarlo internamente.
-          // Sin embargo, en Windows a veces necesita un empujón extra.
-        }
+        await _mkPlayer?.play();
+      } else {
+        await _player.play();
       }
-
-      await _player.play();
       _broadcastState();
-      print(
-        'DEBUG_PLAY: _player.play() ejecutado con éxito. playing=${_player.playing}',
-      );
     } catch (e) {
       print('DEBUG_PLAY: Error en play(): $e');
     }
@@ -529,20 +607,32 @@ class MusicAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> pause() async {
-    await _player.pause();
+    if (Platform.isWindows) {
+      await _mkPlayer?.pause();
+    } else {
+      await _player.pause();
+    }
     _broadcastState();
   }
 
   @override
   Future<void> stop() async {
-    await _player.stop();
-    await _player.seek(Duration.zero);
+    if (Platform.isWindows) {
+      await _mkPlayer?.stop();
+    } else {
+      await _player.stop();
+      await _player.seek(Duration.zero);
+    }
     _broadcastState();
   }
 
   @override
   Future<void> seek(Duration position) async {
-    await _player.seek(position);
+    if (Platform.isWindows) {
+      await _mkPlayer?.seek(position);
+    } else {
+      await _player.seek(position);
+    }
     _broadcastState();
   }
 
@@ -597,7 +687,11 @@ class MusicAudioHandler extends BaseAudioHandler
 
   /// Alternar reproducción/pausa
   Future<void> togglePlayPause() async {
-    if (_player.playing) {
+    final isPlaying = Platform.isWindows
+        ? (_mkPlayer?.state.playing ?? false)
+        : _player.playing;
+
+    if (isPlaying) {
       await pause();
     } else {
       await play();
@@ -619,20 +713,34 @@ class MusicAudioHandler extends BaseAudioHandler
   List<MusicTrack> get playlist => _playlist;
 
   /// Stream de la posición actual
-  Stream<Duration> get positionStream => _player.positionStream;
+  Stream<Duration> get positionStream => Platform.isWindows
+      ? (_mkPlayer?.stream.position ?? const Stream.empty())
+      : _player.positionStream;
 
   /// Stream de la duración
-  Stream<Duration?> get durationStream => _player.durationStream;
+  Stream<Duration?> get durationStream => Platform.isWindows
+      ? (_mkPlayer?.stream.duration ?? const Stream.empty())
+      : _player.durationStream;
 
   /// Stream del estado de reproducción
-  Stream<bool> get playingStream => _player.playingStream;
+  Stream<bool> get playingStream => Platform.isWindows
+      ? (_mkPlayer?.stream.playing ?? const Stream.empty())
+      : _player.playingStream;
 
-  /// Stream del volumen
-  Stream<double> get volumeStream => _player.volumeStream;
+  /// Stream del volumen (mapeado de 0-150 a 0.0-1.0 para el Slider)
+  Stream<double> get volumeStream => Platform.isWindows
+      ? (_mkPlayer?.stream.volume.map((v) => (v / 115).clamp(0.0, 1.0)) ??
+            const Stream.empty())
+      : _player.volumeStream;
 
   /// Establecer el volumen (0.0 a 1.0)
   Future<void> setVolume(double volume) async {
-    await _player.setVolume(volume);
+    if (Platform.isWindows) {
+      // Aplicamos un boost del 50% (multiplicamos por 150 en lugar de 100)
+      await _mkPlayer?.setVolume(volume * 115);
+    } else {
+      await _player.setVolume(volume);
+    }
 
     // Guardar volumen en preferencias
     _prefs ??= await SharedPreferences.getInstance();
@@ -645,7 +753,13 @@ class MusicAudioHandler extends BaseAudioHandler
       _prefs ??= await SharedPreferences.getInstance();
       final savedVolume = _prefs?.getDouble('player_volume');
       if (savedVolume != null) {
-        await _player.setVolume(savedVolume);
+        if (Platform.isWindows) {
+          await _mkPlayer?.setVolume(
+            savedVolume * 115,
+          ); // Mismo multiplicador de boost
+        } else {
+          await _player.setVolume(savedVolume);
+        }
       }
     } catch (e) {
       print('Error al cargar volumen guardado: $e');
@@ -769,6 +883,12 @@ class MusicAudioHandler extends BaseAudioHandler
         await _player.stop();
       }
       await _player.dispose();
+
+      if (_mkPlayer != null) {
+        await _mkPlayer?.stop();
+        await _mkPlayer?.dispose();
+        _mkPlayer = null;
+      }
     } catch (e) {
       print('Error al liberar el reproductor: $e');
     }
