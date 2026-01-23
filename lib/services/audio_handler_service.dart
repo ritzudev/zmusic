@@ -10,7 +10,9 @@ import 'package:smtc_windows/smtc_windows.dart';
 import 'package:windows_taskbar/windows_taskbar.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audio_metadata_reader/audio_metadata_reader.dart' as amr;
 import 'package:zmusic/models/song_model.dart';
+import 'package:zmusic/services/local_server_service.dart';
 
 /// Servicio de audio que maneja la reproducción en segundo plano
 /// Integra just_audio con audio_service para controles en pantalla de bloqueo
@@ -32,10 +34,12 @@ class MusicAudioHandler extends BaseAudioHandler
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   bool _isShuffleEnabled = false;
   String? _placeholderPath;
+  Uint8List? _placeholderBytes;
 
   MusicAudioHandler() {
     if (Platform.isWindows) {
       _mkPlayer = mk.Player();
+      LocalServerService().start();
     }
     _init();
     _preparePlaceholder();
@@ -104,6 +108,8 @@ class MusicAudioHandler extends BaseAudioHandler
         await file.writeAsBytes(byteData.buffer.asUint8List());
       }
       _placeholderPath = path;
+      // Cacheamos los bytes para el servidor de Windows
+      _placeholderBytes = await file.readAsBytes();
     } catch (e) {
       print('Error al preparar placeholder de notificación: $e');
     }
@@ -209,16 +215,37 @@ class MusicAudioHandler extends BaseAudioHandler
     try {
       Uint8List? artworkBytes;
 
-      // Consultar artwork. En móviles usa MediaStore, en Windows lo extrae directamente del archivo.
-      artworkBytes = await _audioQuery.queryArtwork(
-        track.albumId ?? track.songId,
-        track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
-        format: ArtworkFormat.JPEG,
-        size: 500, // Tamaño mayor para que se vea bien en Windows
-      );
+      if (Platform.isWindows) {
+        // En Windows usamos audio_metadata_reader que SÍ está funcionando
+        try {
+          final file = File(track.filePath);
+          final metadata = amr.readMetadata(file, getImage: true);
+          if (metadata.pictures.isNotEmpty) {
+            artworkBytes = metadata.pictures.first.bytes;
+            print(
+              'DEBUG_ARTWORK: Carátula extraída con audio_metadata_reader (${artworkBytes.length} bytes)',
+            );
+          }
+        } catch (e) {
+          print(
+            'DEBUG_ARTWORK: Error al extraer carátula con amr en Windows: $e',
+          );
+        }
+      } else {
+        // En móviles seguimos usando on_audio_query
+        artworkBytes = await _audioQuery.queryArtwork(
+          track.albumId ?? track.songId,
+          track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
+          format: ArtworkFormat.JPEG,
+          size: 500,
+        );
+      }
 
       // Si existe artwork (bytes no nulos y no vacíos)
       if (artworkBytes != null && artworkBytes.isNotEmpty) {
+        print(
+          'DEBUG_ARTWORK: Se obtuvieron ${artworkBytes.length} bytes de carátula para: ${track.title}',
+        );
         if (Platform.isAndroid) {
           if (track.albumId != null) {
             return Uri.parse(
@@ -229,25 +256,31 @@ class MusicAudioHandler extends BaseAudioHandler
               'content://media/external/audio/media/${track.songId}/albumart',
             );
           }
+        } else if (Platform.isWindows) {
+          LocalServerService().updateArtwork(artworkBytes);
+          final url = LocalServerService().artworkUrl;
+          return url != null ? Uri.parse(url) : null;
+        }
+        return null;
+      }
+
+      if (Platform.isWindows) {
+        // Usar placeholder cacheado en memoria para el servidor local
+        if (_placeholderBytes != null) {
+          LocalServerService().updateArtwork(
+            _placeholderBytes,
+            mimeType: 'image/png',
+          );
+          final url = LocalServerService().artworkUrl;
+          return url != null ? Uri.parse(url) : null;
         } else {
-          // Para Windows, usar una ruta absoluta muy clara y asegurar que el archivo sea JPEG
-          final directory = await getApplicationSupportDirectory();
-          final artworkPath = '${directory.path}\\last_track_thumb.jpg';
-          final file = File(artworkPath);
-
-          // Borrar el anterior para evitar que Windows use caché vieja
-          if (await file.exists()) {
-            await file.delete();
-          }
-
-          await file.writeAsBytes(artworkBytes);
-
-          // Debug para confirmar que se guardó
-          print('DEBUG_ARTWORK: Carátula guardada en: ${file.absolute.path}');
-
-          return Uri.file(file.absolute.path);
+          LocalServerService().updateArtwork(null);
         }
       }
+
+      print(
+        'DEBUG_ARTWORK: No se encontró artwork real para: ${track.title}. Usando placeholder.',
+      );
 
       // Si no existe artwork real, usar el placeholder morado
       if (_placeholderPath != null) {
@@ -257,6 +290,14 @@ class MusicAudioHandler extends BaseAudioHandler
       return null;
     } catch (e) {
       print('Error al verificar artwork para notificación: $e');
+
+      if (Platform.isWindows && _placeholderBytes != null) {
+        LocalServerService().updateArtwork(
+          _placeholderBytes,
+          mimeType: 'image/png',
+        );
+      }
+
       // Fallback al placeholder en caso de error
       if (_placeholderPath != null) {
         return Uri.file(_placeholderPath!);
@@ -383,18 +424,19 @@ class MusicAudioHandler extends BaseAudioHandler
     try {
       final track = currentTrack;
       if (track != null) {
+        print('DEBUG_SMTC: Actualizando metadatos para: ${track.title}');
         final artUri = await _getArtworkUri(track);
-        String? thumbPath;
-        if (artUri != null && artUri.isScheme('file')) {
-          thumbPath = artUri.toFilePath();
-        }
+        // Convertimos a string para que maneje tanto file:// como http:// de nuestro servidor local
+        String? finalThumbnail = artUri?.toString();
+
+        print('DEBUG_SMTC: Enviando carátula al SMTC: $finalThumbnail');
 
         await _smtc?.updateMetadata(
           MusicMetadata(
             title: track.title,
             artist: track.artist,
             album: track.album ?? 'Álbum Desconocido',
-            thumbnail: thumbPath,
+            thumbnail: finalThumbnail,
           ),
         );
       }
@@ -872,6 +914,9 @@ class MusicAudioHandler extends BaseAudioHandler
       if (_smtc != null) {
         _smtc?.dispose();
         _smtc = null;
+      }
+      if (Platform.isWindows) {
+        await LocalServerService().stop();
       }
     } catch (e) {
       print('Error al liberar SMTC: $e');
