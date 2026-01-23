@@ -278,13 +278,18 @@ class MusicLibrary extends _$MusicLibrary {
                 try {
                   // amr = audio_metadata_reader
                   final metadata = amr.readMetadata(file, getImage: false);
-                  if (metadata.title != null && metadata.title!.isNotEmpty)
+                  if (metadata.title != null && metadata.title!.isNotEmpty) {
                     title = metadata.title!;
-                  if (metadata.artist != null && metadata.artist!.isNotEmpty)
+                  }
+                  if (metadata.artist != null && metadata.artist!.isNotEmpty) {
                     artist = metadata.artist!;
-                  if (metadata.album != null && metadata.album!.isNotEmpty)
+                  }
+                  if (metadata.album != null && metadata.album!.isNotEmpty) {
                     album = metadata.album!;
-                  if (metadata.duration != null) duration = metadata.duration!;
+                  }
+                  if (metadata.duration != null) {
+                    duration = metadata.duration!;
+                  }
                 } catch (e) {
                   // Fallback silencioso si un archivo falla
                 }

@@ -177,8 +177,8 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: theme.colorScheme.outline.withOpacity(
-                                    0.3,
+                                  color: theme.colorScheme.outline.withValues(
+                                    alpha: 0.3,
                                   ),
                                 ),
                               ),
@@ -249,7 +249,9 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                       Text(
                         "${filteredSongsList.length} canciones",
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
                     ],
@@ -293,8 +295,8 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           Text(
                             _loadingMessage,
                             style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.7,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.7,
                               ),
                             ),
                           ),
@@ -302,8 +304,8 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           Text(
                             "Esto puede tomar unos segundos...",
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.5,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.5,
                               ),
                             ),
                           ),
@@ -320,7 +322,9 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                 ? Icons.favorite_border_rounded
                                 : Icons.search_off_rounded,
                             size: 80,
-                            color: theme.colorScheme.onSurface.withOpacity(0.3),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -330,8 +334,8 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                       ? "No se encontró música"
                                       : "No hay resultados para '$searchQuery'"),
                             style: theme.textTheme.titleLarge?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.5,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.5,
                               ),
                             ),
                           ),
@@ -343,8 +347,8 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                       ? "Toca el botón de refrescar para volver a escanear"
                                       : "Intenta con otro término de búsqueda"),
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.4,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.4,
                               ),
                             ),
                             textAlign: TextAlign.center,
@@ -497,7 +501,7 @@ class _CategoryChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? theme.colorScheme.primary
-              : theme.colorScheme.secondary.withOpacity(0.3),
+              : theme.colorScheme.secondary.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
@@ -505,7 +509,7 @@ class _CategoryChip extends StatelessWidget {
           style: TextStyle(
             color: isSelected
                 ? Colors.white
-                : theme.colorScheme.onSurface.withOpacity(0.6),
+                : theme.colorScheme.onSurface.withValues(alpha: 0.6),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -608,7 +612,9 @@ class _MusicCard extends ConsumerWidget {
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: isCurrentSong
                                 ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurface.withOpacity(0.6),
+                                : theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.6,
+                                  ),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -625,7 +631,7 @@ class _MusicCard extends ConsumerWidget {
                 child: Text(
                   song.formattedDuration,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
               ),
@@ -637,7 +643,7 @@ class _MusicCard extends ConsumerWidget {
                 song.isFavorite ? Icons.favorite : Icons.favorite_border,
                 color: song.isFavorite
                     ? Colors.red
-                    : theme.colorScheme.onSurface.withOpacity(0.5),
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ],

@@ -25,7 +25,7 @@ class NowPlayingMobile extends ConsumerWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            theme.colorScheme.primary.withOpacity(0.3),
+            theme.colorScheme.primary.withValues(alpha: 0.3),
             theme.colorScheme.surface,
             theme.colorScheme.surface,
           ],
@@ -73,7 +73,9 @@ class NowPlayingMobile extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: theme.colorScheme.primary.withOpacity(0.3),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.3,
+                          ),
                           blurRadius: 16,
                           spreadRadius: 8,
                           offset: const Offset(0, 16),
@@ -117,8 +119,8 @@ class NowPlayingMobile extends ConsumerWidget {
                             ScrollingText(
                               text: track.artist,
                               style: theme.textTheme.titleMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(
-                                  0.7,
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.7,
                                 ),
                               ),
                               duration: const Duration(seconds: 12),
@@ -195,7 +197,7 @@ class NowPlayingMobile extends ConsumerWidget {
         size: 26,
         color: isShuffleEnabled
             ? theme.colorScheme.primary
-            : theme.colorScheme.onSurface.withOpacity(0.6),
+            : theme.colorScheme.onSurface.withValues(alpha: 0.6),
       ),
       onPressed: () => ref.read(audioPlayerProvider.notifier).toggleShuffle(),
     );
@@ -211,7 +213,7 @@ class NowPlayingMobile extends ConsumerWidget {
         size: 26,
         color: repeatMode != RepeatMode.none
             ? theme.colorScheme.primary
-            : theme.colorScheme.onSurface.withOpacity(0.6),
+            : theme.colorScheme.onSurface.withValues(alpha: 0.6),
       ),
       onPressed: () =>
           ref.read(audioPlayerProvider.notifier).toggleRepeatMode(),
@@ -251,7 +253,7 @@ class NowPlayingMobile extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.3),
+                    ).colorScheme.onSurface.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -271,7 +273,7 @@ class NowPlayingMobile extends ConsumerWidget {
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.6),
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                     ],

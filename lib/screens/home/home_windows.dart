@@ -123,7 +123,7 @@ class HomeWindows extends ConsumerWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    const Color(0xFF1DB954).withOpacity(0.1),
+                    const Color(0xFF1DB954).withValues(alpha: 0.1),
                     const Color(0xFF121212),
                   ],
                 ),
@@ -227,7 +227,7 @@ class HomeWindows extends ConsumerWidget {
                   hintStyle: const TextStyle(color: Colors.grey),
                   prefixIcon: const Icon(Icons.search, color: Colors.grey),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.1),
+                  fillColor: Colors.white.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,

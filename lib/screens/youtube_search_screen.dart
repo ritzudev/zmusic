@@ -174,7 +174,9 @@ class _YouTubeSearchScreenState extends ConsumerState<YouTubeSearchScreen> {
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: theme.colorScheme.outline.withOpacity(0.3),
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.3,
+                          ),
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
@@ -209,7 +211,9 @@ class _YouTubeSearchScreenState extends ConsumerState<YouTubeSearchScreen> {
                         Icon(
                           Icons.youtube_searched_for,
                           size: 80,
-                          color: theme.colorScheme.onSurface.withOpacity(0.2),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         const Text("Busca música de YouTube para descargar"),
@@ -331,7 +335,7 @@ class _YouTubeVideoCard extends ConsumerWidget {
             : BorderSide.none,
       ),
       color: isSelected
-          ? theme.colorScheme.primaryContainer.withOpacity(0.3)
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
           : null,
       child: InkWell(
         onTap: isDownloading
@@ -364,7 +368,9 @@ class _YouTubeVideoCard extends ConsumerWidget {
                     Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withOpacity(0.4),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.4,
+                          ),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(Icons.check, color: Colors.white),
@@ -388,7 +394,9 @@ class _YouTubeVideoCard extends ConsumerWidget {
                       video.author,
                       style: TextStyle(
                         fontSize: 12,
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                       ),
                     ),
                     if (video.duration != null)
@@ -396,7 +404,9 @@ class _YouTubeVideoCard extends ConsumerWidget {
                         _formatDuration(video.duration!),
                         style: TextStyle(
                           fontSize: 11,
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                   ],
@@ -407,7 +417,7 @@ class _YouTubeVideoCard extends ConsumerWidget {
                   isSelected ? Icons.check_circle : Icons.download_rounded,
                   color: isSelected
                       ? theme.colorScheme.primary
-                      : theme.colorScheme.primary.withOpacity(0.7),
+                      : theme.colorScheme.primary.withValues(alpha: 0.7),
                 ),
                 onPressed: isDownloading ? null : onDownloadSingle,
               ),

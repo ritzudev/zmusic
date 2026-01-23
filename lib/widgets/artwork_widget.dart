@@ -131,7 +131,7 @@ class ArtworkWidget extends ConsumerWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.5),
+        color: Colors.grey.withValues(alpha: 0.5),
         borderRadius: borderRadius,
       ),
       child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),

@@ -62,7 +62,7 @@ class DownloadStatusBar extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -93,7 +93,9 @@ class DownloadStatusBar extends ConsumerWidget {
                     Text(
                       videoTitle,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -119,7 +121,9 @@ class DownloadStatusBar extends ConsumerWidget {
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: progressValue,
-              backgroundColor: theme.colorScheme.onSurface.withOpacity(0.1),
+              backgroundColor: theme.colorScheme.onSurface.withValues(
+                alpha: 0.1,
+              ),
               valueColor: AlwaysStoppedAnimation<Color>(
                 theme.colorScheme.primary,
               ),
@@ -134,7 +138,7 @@ class DownloadStatusBar extends ConsumerWidget {
               Text(
                 "$downloadedStr / $totalStr",
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -143,7 +147,7 @@ class DownloadStatusBar extends ConsumerWidget {
           Text(
             'Se guardará automaticamente',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.5),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               letterSpacing: 0.5,
             ),
           ),
@@ -206,7 +210,7 @@ class _AnimatedDownloadIconState extends State<_AnimatedDownloadIcon>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: primaryColor.withOpacity(shadowIntensity),
+                color: primaryColor.withValues(alpha: shadowIntensity),
                 blurRadius: shadowBlur,
                 spreadRadius: 1,
               ),
@@ -219,15 +223,19 @@ class _AnimatedDownloadIconState extends State<_AnimatedDownloadIcon>
               decoration: BoxDecoration(
                 gradient: RadialGradient(
                   colors: [
-                    primaryColor.withOpacity(0.2 + (0.1 * _animation.value)),
-                    primaryColor.withOpacity(0.05 + (0.05 * _animation.value)),
+                    primaryColor.withValues(
+                      alpha: 0.2 + (0.1 * _animation.value),
+                    ),
+                    primaryColor.withValues(
+                      alpha: 0.05 + (0.05 * _animation.value),
+                    ),
                   ],
                   stops: const [0.4, 1.0],
                 ),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: primaryColor.withOpacity(
-                    0.3 + (0.2 * _animation.value),
+                  color: primaryColor.withValues(
+                    alpha: 0.3 + (0.2 * _animation.value),
                   ),
                   width: 2,
                 ),

@@ -25,7 +25,7 @@ class NowPlayingWindows extends ConsumerWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              theme.colorScheme.primary.withOpacity(0.1),
+              theme.colorScheme.primary.withValues(alpha: 0.1),
               theme.colorScheme.surface,
             ],
           ),
@@ -57,7 +57,9 @@ class NowPlayingWindows extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: theme.colorScheme.primary.withOpacity(0.2),
+                              color: theme.colorScheme.primary.withValues(
+                                alpha: 0.2,
+                              ),
                               blurRadius: 30,
                               spreadRadius: 10,
                             ),
@@ -86,7 +88,9 @@ class NowPlayingWindows extends ConsumerWidget {
                     Text(
                       track.artist,
                       style: theme.textTheme.titleLarge?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -102,7 +106,7 @@ class NowPlayingWindows extends ConsumerWidget {
             VerticalDivider(
               width: 1,
               thickness: 1,
-              color: theme.colorScheme.onSurface.withOpacity(0.05),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
             ),
 
             // PARTE DERECHA: Playlist y Controles Principales
@@ -140,7 +144,7 @@ class NowPlayingWindows extends ConsumerWidget {
                       color: theme.colorScheme.surface,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 10,
                           offset: const Offset(0, -5),
                         ),
@@ -256,7 +260,9 @@ class NowPlayingWindows extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             selected: isPlaying,
-            selectedTileColor: theme.colorScheme.primary.withOpacity(0.05),
+            selectedTileColor: theme.colorScheme.primary.withValues(
+              alpha: 0.05,
+            ),
             onTap: () =>
                 ref.read(audioPlayerProvider.notifier).playTrack(index),
           ),

@@ -56,7 +56,7 @@ class SettingsScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 16),
@@ -94,7 +94,9 @@ class SettingsScreen extends ConsumerWidget {
                               boxShadow: isSelected
                                   ? [
                                       BoxShadow(
-                                        color: accentColor.withOpacity(0.4),
+                                        color: accentColor.withValues(
+                                          alpha: 0.4,
+                                        ),
                                         blurRadius: 12,
                                         spreadRadius: 2,
                                       ),
@@ -188,7 +190,7 @@ class SettingsScreen extends ConsumerWidget {
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
         fontWeight: FontWeight.bold,
-        color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
       ),
     );
   }

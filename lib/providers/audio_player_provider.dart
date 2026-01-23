@@ -188,7 +188,7 @@ class AudioPlayer extends _$AudioPlayer {
       }
     } catch (e) {
       // Manejar error de inicialización
-      print('Error al inicializar el audio handler: $e');
+
       if (_handlerReadyCompleter != null &&
           !_handlerReadyCompleter!.isCompleted) {
         _handlerReadyCompleter!.completeError(e);
@@ -251,7 +251,6 @@ class AudioPlayer extends _$AudioPlayer {
         isLoading: false,
       );
     } catch (e) {
-      print('Error al establecer playlist: $e');
       state = state.copyWith(isLoading: false);
     }
   }
@@ -280,7 +279,6 @@ class AudioPlayer extends _$AudioPlayer {
         isLoading: false,
       );
     } catch (e) {
-      print('Error al reproducir aleatorios: $e');
       state = state.copyWith(isLoading: false);
     }
   }
@@ -290,8 +288,8 @@ class AudioPlayer extends _$AudioPlayer {
     try {
       await _ensureHandlerReady();
       await _handler!.playTrack(index);
-    } catch (e) {
-      print('Error al reproducir canción: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -300,8 +298,8 @@ class AudioPlayer extends _$AudioPlayer {
     try {
       await _ensureHandlerReady();
       await _handler!.play();
-    } catch (e) {
-      print('Error al reproducir: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -310,8 +308,8 @@ class AudioPlayer extends _$AudioPlayer {
     try {
       await _ensureHandlerReady();
       await _handler!.pause();
-    } catch (e) {
-      print('Error al pausar: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -320,8 +318,8 @@ class AudioPlayer extends _$AudioPlayer {
     try {
       await _ensureHandlerReady();
       await _handler!.togglePlayPause();
-    } catch (e) {
-      print('Error al alternar play/pause: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -330,8 +328,8 @@ class AudioPlayer extends _$AudioPlayer {
     try {
       await _ensureHandlerReady();
       await _handler!.skipToNext();
-    } catch (e) {
-      print('Error al saltar a siguiente: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -340,8 +338,8 @@ class AudioPlayer extends _$AudioPlayer {
     try {
       await _ensureHandlerReady();
       await _handler!.skipToPrevious();
-    } catch (e) {
-      print('Error al saltar a anterior: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -350,8 +348,8 @@ class AudioPlayer extends _$AudioPlayer {
     try {
       await _ensureHandlerReady();
       await _handler!.seek(position);
-    } catch (e) {
-      print('Error al buscar posición: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -361,8 +359,8 @@ class AudioPlayer extends _$AudioPlayer {
       await _ensureHandlerReady();
       await _handler!.stop();
       state = const AudioPlayerState();
-    } catch (e) {
-      print('Error al detener: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -379,8 +377,8 @@ class AudioPlayer extends _$AudioPlayer {
 
       // Configurar en el audio handler (convertir a AudioServiceRepeatMode)
       await _handler!.setRepeatMode(newMode.toAudioServiceMode());
-    } catch (e) {
-      print('Error al alternar modo de repetición: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -400,8 +398,8 @@ class AudioPlayer extends _$AudioPlayer {
           ? AudioServiceShuffleMode.all
           : AudioServiceShuffleMode.none;
       await _handler!.setShuffleMode(shuffleMode);
-    } catch (e) {
-      print('Error al alternar modo aleatorio: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 
@@ -410,8 +408,8 @@ class AudioPlayer extends _$AudioPlayer {
     try {
       await _ensureHandlerReady();
       await _handler!.setVolume(volume);
-    } catch (e) {
-      print('Error al establecer volumen: $e');
+    } catch (_) {
+      // Error manejado silenciosamente
     }
   }
 }

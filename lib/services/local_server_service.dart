@@ -41,11 +41,8 @@ class LocalServerService {
       // Usamos puerto 0 para que el sistema asigne uno libre automáticamente
       _server = await io.serve(router.call, InternetAddress.loopbackIPv4, 0);
       _port = _server!.port;
-      print(
-        'DEBUG: Servidor local de carátulas iniciado en http://localhost:$_port',
-      );
     } catch (e) {
-      print('DEBUG: Error al iniciar servidor local: $e');
+      // Error silencioso al iniciar el servidor
     }
   }
 

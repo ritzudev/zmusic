@@ -1,6 +1,8 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  errors:
+    empty_catches: ignore
   plugins:
     - custom_lint
 

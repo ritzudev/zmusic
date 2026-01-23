@@ -85,9 +85,10 @@ class MusicPlayerControls extends ConsumerWidget {
                               text: state.currentTrack!.artist,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface.withOpacity(0.7),
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.7),
                                   ),
                               duration: const Duration(seconds: 12),
                             ),
@@ -161,7 +162,7 @@ class MusicPlayerControls extends ConsumerWidget {
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.7),
+                          ).colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -226,7 +227,9 @@ class MusicPlayerControls extends ConsumerWidget {
                         ScrollingText(
                           text: state.currentTrack!.artist,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.7),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.7,
+                            ),
                           ),
                           duration: const Duration(seconds: 12),
                         ),
@@ -305,8 +308,9 @@ class MusicPlayerControls extends ConsumerWidget {
                           ),
                           child: Slider(
                             activeColor: theme.colorScheme.primary,
-                            inactiveColor: theme.colorScheme.primary
-                                .withOpacity(0.2),
+                            inactiveColor: theme.colorScheme.primary.withValues(
+                              alpha: 0.2,
+                            ),
                             value: state.progress.clamp(0.0, 1.0),
                             onChanged: (value) {
                               if (state.duration != null) {
@@ -321,7 +325,9 @@ class MusicPlayerControls extends ConsumerWidget {
                       Text(
                         _formatDuration(state.duration ?? Duration.zero),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                     ],
@@ -338,7 +344,7 @@ class MusicPlayerControls extends ConsumerWidget {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.fullscreen),
-                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                     onPressed: () {
                       Navigator.push(
                         context,

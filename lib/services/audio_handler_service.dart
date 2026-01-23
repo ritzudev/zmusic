@@ -66,7 +66,6 @@ class MusicAudioHandler extends BaseAudioHandler
       );
 
       _smtc?.buttonPressStream.listen((event) async {
-        print('DEBUG_SMTC: Botón presionado en Windows: $event');
         switch (event) {
           case PressedButton.play:
             await play();
@@ -222,14 +221,9 @@ class MusicAudioHandler extends BaseAudioHandler
           final metadata = amr.readMetadata(file, getImage: true);
           if (metadata.pictures.isNotEmpty) {
             artworkBytes = metadata.pictures.first.bytes;
-            print(
-              'DEBUG_ARTWORK: Carátula extraída con audio_metadata_reader (${artworkBytes.length} bytes)',
-            );
           }
         } catch (e) {
-          print(
-            'DEBUG_ARTWORK: Error al extraer carátula con amr en Windows: $e',
-          );
+          // Error silencioso al extraer carátula
         }
       } else {
         // En móviles seguimos usando on_audio_query
@@ -241,11 +235,7 @@ class MusicAudioHandler extends BaseAudioHandler
         );
       }
 
-      // Si existe artwork (bytes no nulos y no vacíos)
       if (artworkBytes != null && artworkBytes.isNotEmpty) {
-        print(
-          'DEBUG_ARTWORK: Se obtuvieron ${artworkBytes.length} bytes de carátula para: ${track.title}',
-        );
         if (Platform.isAndroid) {
           if (track.albumId != null) {
             return Uri.parse(
@@ -277,10 +267,6 @@ class MusicAudioHandler extends BaseAudioHandler
           LocalServerService().updateArtwork(null);
         }
       }
-
-      print(
-        'DEBUG_ARTWORK: No se encontró artwork real para: ${track.title}. Usando placeholder.',
-      );
 
       // Si no existe artwork real, usar el placeholder morado
       if (_placeholderPath != null) {
@@ -424,12 +410,9 @@ class MusicAudioHandler extends BaseAudioHandler
     try {
       final track = currentTrack;
       if (track != null) {
-        print('DEBUG_SMTC: Actualizando metadatos para: ${track.title}');
         final artUri = await _getArtworkUri(track);
         // Convertimos a string para que maneje tanto file:// como http:// de nuestro servidor local
         String? finalThumbnail = artUri?.toString();
-
-        print('DEBUG_SMTC: Enviando carátula al SMTC: $finalThumbnail');
 
         await _smtc?.updateMetadata(
           MusicMetadata(
@@ -586,8 +569,6 @@ class MusicAudioHandler extends BaseAudioHandler
         );
       }
 
-      print('DEBUG_PLAY: Archivo cargado satisfactoriamente.');
-
       // En Windows, actualizamos metadatos pesados (imagen) solo al cargar la pista
       if (Platform.isWindows) {
         _updateSMTCMetadata();
@@ -607,7 +588,6 @@ class MusicAudioHandler extends BaseAudioHandler
           ),
         );
       } catch (artworkError) {
-        print('DEBUG_PLAY: Error (no fatal) al cargar artwork: $artworkError');
         // Continuar sin artwork
         mediaItem.add(
           MediaItem(
@@ -621,10 +601,7 @@ class MusicAudioHandler extends BaseAudioHandler
       }
 
       _broadcastState();
-    } catch (e, stack) {
-      print('DEBUG_PLAY: ERROR CRÍTICO al cargar la pista: $e');
-      print('DEBUG_PLAY: StackTrace: $stack');
-    }
+    } catch (_) {}
   }
 
   /// Reproducir una canción específica de la lista
@@ -642,9 +619,7 @@ class MusicAudioHandler extends BaseAudioHandler
         await _player.play();
       }
       _broadcastState();
-    } catch (e) {
-      print('DEBUG_PLAY: Error en play(): $e');
-    }
+    } catch (_) {}
   }
 
   @override

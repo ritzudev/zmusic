@@ -74,7 +74,10 @@ class AppTheme {
   static ThemeData darkWithPalette(AppPalette palette) {
     final primaryColor = paletteAccents[palette]!;
     final bgColor = paletteBackgrounds[palette]!;
-    final cardColor = Color.alphaBlend(Colors.white.withOpacity(0.05), bgColor);
+    final cardColor = Color.alphaBlend(
+      Colors.white.withValues(alpha: 0.05),
+      bgColor,
+    );
 
     return ThemeData(
       useMaterial3: true,
@@ -125,7 +128,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-        hintStyle: TextStyle(color: darkOnSurface.withOpacity(0.5)),
+        hintStyle: TextStyle(color: darkOnSurface.withValues(alpha: 0.5)),
         prefixIconColor: primaryColor,
       ),
       cardTheme: CardThemeData(
@@ -136,7 +139,7 @@ class AppTheme {
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: bgColor,
         selectedItemColor: primaryColor,
-        unselectedItemColor: darkOnSurface.withOpacity(0.4),
+        unselectedItemColor: darkOnSurface.withValues(alpha: 0.4),
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),

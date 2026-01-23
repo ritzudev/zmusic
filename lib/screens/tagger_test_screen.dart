@@ -289,13 +289,17 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
                         Icon(
                           Icons.music_note_outlined,
                           size: 64,
-                          color: theme.colorScheme.onSurface.withOpacity(0.3),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.3,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           "No se ha seleccionado música",
                           style: theme.textTheme.titleMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.5),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.5,
+                            ),
                           ),
                         ),
                       ],
@@ -331,7 +335,9 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.1)),
+        side: BorderSide(
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        ),
       ),
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
@@ -384,7 +390,9 @@ class _TaggerTestAppState extends State<TaggerTestApp> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.1)),
+        side: BorderSide(
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        ),
       ),
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
