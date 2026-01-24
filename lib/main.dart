@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zmusic/providers/theme_provider.dart';
 import 'package:zmusic/screens/music_home_screen.dart';
@@ -89,6 +90,7 @@ class _MainAppState extends ConsumerState<MainApp> {
   @override
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
+    final playerNotifier = ref.read(audioPlayerProvider.notifier);
 
     return MaterialApp(
       theme: AppTheme.lightWithPalette(themeState.palette),
@@ -96,6 +98,34 @@ class _MainAppState extends ConsumerState<MainApp> {
       themeMode: themeState.mode,
       debugShowCheckedModeBanner: false,
       home: const MusicHomeScreen(),
+      builder: (context, child) {
+        return Shortcuts(
+          shortcuts: <LogicalKeySet, Intent>{
+            LogicalKeySet(LogicalKeyboardKey.space): const PlayPauseIntent(),
+            LogicalKeySet(LogicalKeyboardKey.arrowLeft):
+                const SkipPreviousIntent(),
+            LogicalKeySet(LogicalKeyboardKey.arrowRight):
+                const SkipNextIntent(),
+          },
+          child: Actions(
+            actions: <Type, Action<Intent>>{
+              PlayPauseIntent: CallbackAction<PlayPauseIntent>(
+                onInvoke: (PlayPauseIntent intent) =>
+                    playerNotifier.togglePlayPause(),
+              ),
+              SkipPreviousIntent: CallbackAction<SkipPreviousIntent>(
+                onInvoke: (SkipPreviousIntent intent) =>
+                    playerNotifier.skipToPrevious(),
+              ),
+              SkipNextIntent: CallbackAction<SkipNextIntent>(
+                onInvoke: (SkipNextIntent intent) =>
+                    playerNotifier.skipToNext(),
+              ),
+            },
+            child: child!,
+          ),
+        );
+      },
       routes: {
         '/now-playing': (context) => const NowPlayingScreen(),
         '/settings': (context) => const SettingsScreen(),
@@ -104,4 +134,16 @@ class _MainAppState extends ConsumerState<MainApp> {
       },
     );
   }
+}
+
+class PlayPauseIntent extends Intent {
+  const PlayPauseIntent();
+}
+
+class SkipPreviousIntent extends Intent {
+  const SkipPreviousIntent();
+}
+
+class SkipNextIntent extends Intent {
+  const SkipNextIntent();
 }
