@@ -2,94 +2,19 @@ name: Build and Release Z Music
 
 on:
   push:
-    branches: [ main ]
     tags:
       - 'v*'
 
 jobs:
-  build-android:
-    name: Build APK (Android)
-    runs-on: ubuntu-latest # Linux es mucho más rápido y estable para Android
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-
-  build-windows:
-    name: Build MSIX (Windows)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build MSIX
-        run: dart run msix:create --install-certificate false
-
-      - name: Upload MSIX Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-msix
-          path: build/windows/x64/runner/Release/zmusic.msix
-
-  release:
-    name: Create Release
-    needs: [build-android, build-windows]
-    if: startsWith(github.ref, 'refs/tags/')
+  release-manual:
+    name: Prepare Release Meta
     runs-on: ubuntu-latest
     steps:
-      - name: Download APK
-        uses: actions/download-artifact@v4
-        with:
-          name: android-apk
-          path: release-assets
-
-      - name: Download MSIX
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-msix
-          path: release-assets
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            release-assets/app-release.apk
-            release-assets/zmusic.msix
           name: Release ${{ github.ref_name }}
+          body: "Descarga los archivos adjuntos (subidos manualmente)."
           draft: false
           prerelease: false
         env:
