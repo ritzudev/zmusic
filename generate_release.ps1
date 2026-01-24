@@ -43,7 +43,25 @@ $newContent | Set-Content $pubspecPath
 
 # 2. Limpiar compilaciones anteriores
 Write-Host "[2/5] Limpiando archivos temporales..." -ForegroundColor Yellow
-flutter clean
+$cleanSuccess = $true
+try {
+    flutter clean
+} catch {
+    $cleanSuccess = $false
+}
+
+if (!$cleanSuccess) {
+    Write-Host "! La carpeta build está bloqueada por otro programa." -ForegroundColor Red
+    $choice = Read-Host "¿Quieres intentar forzar el cierre de procesos de Java/Dart para desbloquearla? (s/n)"
+    if ($choice -eq "s") {
+        Write-Host "Cerrando procesos bloqueantes..." -ForegroundColor Yellow
+        Stop-Process -Name "java" -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name "dart" -Force -ErrorAction SilentlyContinue
+        flutter clean
+    } else {
+        Write-Host "Intentando continuar sin limpiar..." -ForegroundColor Cyan
+    }
+}
 flutter pub get
 
 # 3. Compilar APK (Android)
