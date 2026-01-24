@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:ota_update/ota_update.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class UpdateService {
   static const String _repo = 'ritzudev/zmusic';
@@ -102,7 +103,16 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   bool _isUpdating = false;
   String _status = '';
 
-  void _startUpdate() {
+  void _startUpdate() async {
+    // 1. Pedir permiso explícito para instalar paquetes
+    if (Platform.isAndroid) {
+      final status = await Permission.requestInstallPackages.request();
+      if (status != PermissionStatus.granted) {
+        setState(() => _status = 'Permiso de instalación denegado');
+        return;
+      }
+    }
+
     setState(() {
       _isUpdating = true;
       _status = 'Iniciando descarga...';
@@ -122,12 +132,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
               if (event.status == OtaStatus.INSTALLING) {
                 setState(() {
-                  _status = 'Instalación iniciada';
+                  _status = '¡Listo! Si no abre, revisa notificaciones.';
                   _isUpdating = false;
-                });
-                // Esperamos un poco antes de cerrar el diálogo
-                Future.delayed(const Duration(seconds: 2), () {
-                  if (mounted) Navigator.of(context).pop();
                 });
               }
             },
@@ -217,30 +223,30 @@ class _UpdateDialogState extends State<_UpdateDialog> {
           ],
         ],
       ),
-      actions: _isUpdating
-          ? []
-          : [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'Luego',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
+      actions: [
+        if (!_isUpdating)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              _status.contains('Listo') ? 'Cerrar' : 'Luego',
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
-              ElevatedButton(
-                onPressed: _startUpdate,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Actualizar ahora'),
+            ),
+          ),
+        if (!_isUpdating && !_status.contains('Listo'))
+          ElevatedButton(
+            onPressed: _startUpdate,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
+            ),
+            child: const Text('Actualizar ahora'),
+          ),
+      ],
     );
   }
 }
