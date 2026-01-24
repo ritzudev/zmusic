@@ -1,19 +1,30 @@
-# Script de Lanzamiento Manual - Z Music
-# Compila localmente (más rápido) y ayuda a subir a GitHub.
+# Script de Lanzamiento Atómico - Z Music
+# Sincroniza: Features + Incremento de Versión + Build + Tag + Push
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "====================================================" -ForegroundColor Cyan
-Write-Host "   GENERADOR DE LANZAMIENTO MANUAL - Z MUSIC" -ForegroundColor Cyan
+Write-Host "   GENERADOR DE LANZAMIENTO ATÓMICO - Z MUSIC" -ForegroundColor Cyan
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host ""
+
+# Verificar si hay cambios pendientes
+$status = git status --porcelain
+if (-not $status) {
+    Write-Host "! No hay cambios detectados. ¿Seguro que quieres lanzar una nueva versión sin cambios?" -ForegroundColor Yellow
+    $ans = Read-Host "(s/n)"
+    if ($ans -ne "s") { exit }
+}
+
+# 1. Preguntar por los cambios (para el mensaje de commit)
+$changeLog = Read-Host "🎨 ¿Qué novedades tiene esta versión? (Ej: Arreglado bug de rumbita)"
+if (-not $changeLog) { $changeLog = "Mejoras generales y correcciones" }
 
 $pubspecPath = Join-Path $PSScriptRoot "pubspec.yaml"
 $releaseFolder = Join-Path $PSScriptRoot "releases"
 
-# 1. Incrementar versión
-Write-Host "[1/5] Actualizando versiones en pubspec.yaml..." -ForegroundColor Yellow
-
+# 2. Incrementar versión en pubspec.yaml antes de nada
+Write-Host "[1/6] Incrementando versiones..." -ForegroundColor Yellow
 $content = Get-Content $pubspecPath
 $newContent = @()
 $version = ""
@@ -24,25 +35,28 @@ foreach ($line in $content) {
         $buildNum = [int]$matches[2] + 1
         $version = "$prefix$buildNum"
         $newContent += "version: $version"
-        Write-Host "   - Nueva versión: $version" -ForegroundColor Green
     } 
     elseif ($line -match 'msix_version:\s*(\d+\.\d+\.\d+\.)(\d+)') {
         $prefix = $matches[1]
         $buildNum = [int]$matches[2] + 1
         $newContent += "  msix_version: $prefix$buildNum"
     } 
-    else {
-        $newContent += $line
-    }
+    else { $newContent += $line }
 }
 $newContent | Set-Content $pubspecPath
+Write-Host "   ✓ Versión preparada: $version" -ForegroundColor Green
 
-# 2. Limpieza y Compilación Local (Tu PC es más rápido que GitHub)
-Write-Host "[2/5] Limpiando y compilando APK..." -ForegroundColor Yellow
+# 3. Guardar TODO en Git (Features + Versión)
+Write-Host "[2/6] Guardando todos los cambios en Git..." -ForegroundColor Yellow
+git add .
+git commit -m "feat: $changeLog (v$version)"
+Write-Host "   ✓ Commit creado con éxito." -ForegroundColor Green
+
+# 4. Compilación Local con la nueva versión
+Write-Host "[3/6] Compilando APK (Android)..." -ForegroundColor Yellow
 $cleanSuccess = $true
 try { flutter clean } catch { $cleanSuccess = $false }
 if (!$cleanSuccess) {
-    Write-Host "! Carpeta bloqueada. Matando procesos de Java..." -ForegroundColor Cyan
     Stop-Process -Name "java" -Force -ErrorAction SilentlyContinue 
     flutter clean
 }
@@ -50,36 +64,31 @@ flutter pub get
 flutter build apk --release
 if ($LASTEXITCODE -ne 0) { throw "Error en build APK" }
 
-Write-Host "[3/5] Compilando MSIX (Windows)..." -ForegroundColor Yellow
+Write-Host "[4/6] Compilando MSIX (Windows)..." -ForegroundColor Yellow
 dart run msix:create --install-certificate false
 if ($LASTEXITCODE -ne 0) { throw "Error en build MSIX" }
 
-# 3. Organizar archivos
-Write-Host "[4/5] Organizando archivos..." -ForegroundColor Yellow
+# 5. Organizar archivos
+Write-Host "[5/6] Organizando archivos..." -ForegroundColor Yellow
 if (!(Test-Path $releaseFolder)) { New-Item -ItemType Directory -Path $releaseFolder | Out-Null }
 $apkDest = Join-Path $releaseFolder "ZMusic_v$version.apk"
 $msixDest = Join-Path $releaseFolder "ZMusic_v$version.msix"
 Copy-Item "build\app\outputs\flutter-apk\app-release.apk" $apkDest -Force
 Copy-Item "build\windows\x64\runner\Release\zmusic.msix" $msixDest -Force
 
-# 4. Git y Tag
-Write-Host "[5/5] Subiendo tag a GitHub..." -ForegroundColor Yellow
-git add pubspec.yaml
-git commit -m "chore: release v$version"
-git push origin main
+# 6. Tag y Push Final
+Write-Host "[6/6] Sincronizando con GitHub..." -ForegroundColor Yellow
 git tag "v$version"
+git push origin main
 git push origin "v$version"
 
-# 5. Abrir todo para subir manualmente
 Write-Host ""
 Write-Host "====================================================" -ForegroundColor Green
-Write-Host "   ¡LISTO PARA SUBIR!" -ForegroundColor Green
+Write-Host "   ¡LANZAMIENTO v$version LISTO!" -ForegroundColor Green
 Write-Host "====================================================" -ForegroundColor Green
-Write-Host " 1. Se abrirá la carpeta con los archivos." -ForegroundColor White
-Write-Host " 2. Se abrirá GitHub para que arrastres los archivos." -ForegroundColor White
-Write-Host "====================================================" -ForegroundColor Green
+Write-Host ""
 
 Start-Process "explorer.exe" -ArgumentList $releaseFolder
 Start-Process "https://github.com/ritzudev/zmusic/releases/new?tag=v$version"
 
-Write-Host "¡Pum! Arrastra el APK y el MSIX a la página de GitHub y listo." -ForegroundColor Cyan
+Write-Host "¡Pum! Arrastra los archivos y disfruta de la gloria." -ForegroundColor Cyan
