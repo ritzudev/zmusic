@@ -300,7 +300,7 @@ class _YouTubeSearchScreenState extends ConsumerState<YouTubeSearchScreen> {
         ],
       ),
       // Overlay de descarga global (opcional)
-      bottomNavigationBar: const DownloadStatusBar(),
+      bottomNavigationBar: SafeArea(child: const DownloadStatusBar()),
     );
   }
 }
