@@ -40,6 +40,15 @@ class UpdateService {
             data['body'] ?? '',
           );
         }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ya estás en la versión más reciente'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error chequeando actualizaciones: $e');
