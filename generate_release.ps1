@@ -82,13 +82,15 @@ git tag "v$version"
 git push origin main
 git push origin "v$version"
 
+# 7. GitHub Release Atómico
+Write-Host "[7/7] Creando lanzamiento oficial en GitHub..." -ForegroundColor Yellow
+gh release create "v$version" $apkDest $msixDest --title "v$version" --notes "feat: $changeLog"
+
 Write-Host ""
 Write-Host "====================================================" -ForegroundColor Green
-Write-Host "   ¡LANZAMIENTO v$version LISTO!" -ForegroundColor Green
+Write-Host "   ¡LANZAMIENTO v$version PUBLICADO!" -ForegroundColor Green
 Write-Host "====================================================" -ForegroundColor Green
 Write-Host ""
 
 Start-Process "explorer.exe" -ArgumentList $releaseFolder
-Start-Process "https://github.com/ritzudev/zmusic/releases/new?tag=v$version"
-
-Write-Host "¡Pum! Arrastra los archivos y disfruta de la gloria." -ForegroundColor Cyan
+Write-Host "¡Pum! Todo listo. Los archivos ya están en la nube." -ForegroundColor Cyan

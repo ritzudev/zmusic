@@ -121,13 +121,21 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               });
 
               if (event.status == OtaStatus.INSTALLING) {
-                Navigator.of(context).pop();
+                setState(() {
+                  _status = 'Instalación iniciada';
+                  _isUpdating = false;
+                });
+                // Esperamos un poco antes de cerrar el diálogo
+                Future.delayed(const Duration(seconds: 2), () {
+                  if (mounted) Navigator.of(context).pop();
+                });
               }
             },
             onError: (e) {
+              debugPrint('OTA Error: $e');
               setState(() {
                 _isUpdating = false;
-                _status = 'Error: $e';
+                _status = 'Error: $e. Reintenta.';
               });
             },
           );

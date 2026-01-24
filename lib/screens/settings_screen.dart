@@ -5,6 +5,7 @@ import 'package:zmusic/providers/theme_provider.dart';
 import 'package:zmusic/services/window_service.dart';
 import 'package:zmusic/services/update_service.dart';
 import 'package:zmusic/theme/app_theme.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -195,11 +196,17 @@ class SettingsScreen extends ConsumerWidget {
                         UpdateService().checkForUpdates(context);
                       },
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.info_outline),
-                      title: const Text('Acerca de Z Music'),
-                      subtitle: const Text('Versión 0.1.0'),
-                      onTap: () {},
+                    FutureBuilder<PackageInfo>(
+                      future: PackageInfo.fromPlatform(),
+                      builder: (context, snapshot) {
+                        final version = snapshot.data?.version ?? '...';
+                        return ListTile(
+                          leading: const Icon(Icons.info_outline),
+                          title: const Text('Acerca de Z Music'),
+                          subtitle: Text('Versión $version'),
+                          onTap: () {},
+                        );
+                      },
                     ),
                   ],
                 ),
