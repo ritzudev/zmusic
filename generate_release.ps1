@@ -52,29 +52,45 @@ git add .
 git commit -m "feat: $changeLog (v$version)"
 Write-Host "   ✓ Commit creado con éxito." -ForegroundColor Green
 
-# 4. Compilación Local con la nueva versión
-Write-Host "[3/6] Compilando APK (Android)..." -ForegroundColor Yellow
-$cleanSuccess = $true
-try { flutter clean } catch { $cleanSuccess = $false }
-if (!$cleanSuccess) {
-    Stop-Process -Name "java" -Force -ErrorAction SilentlyContinue 
-    flutter clean
+# 4. Selección de plataforma
+Write-Host "🚀 ¿Qué quieres compilar?" -ForegroundColor Cyan
+Write-Host "1. Solo Android (APK)"
+Write-Host "2. Solo Windows (MSIX)"
+Write-Host "3. Ambos (Recomendado para Release final)"
+$choice = Read-Host "Elige una opción (1-3)"
+
+$buildAndroid = ($choice -eq "1" -or $choice -eq "3")
+$buildWindows = ($choice -eq "2" -or $choice -eq "3")
+
+# 5. Compilación Local
+if ($buildAndroid) {
+    Write-Host "[3/6] Compilando APK (Android)..." -ForegroundColor Yellow
+    flutter build apk --release
+    if ($LASTEXITCODE -ne 0) { throw "Error en build APK" }
 }
-flutter pub get
-flutter build apk --release
-if ($LASTEXITCODE -ne 0) { throw "Error en build APK" }
 
-Write-Host "[4/6] Compilando MSIX (Windows)..." -ForegroundColor Yellow
-dart run msix:create --install-certificate false
-if ($LASTEXITCODE -ne 0) { throw "Error en build MSIX" }
+if ($buildWindows) {
+    Write-Host "[4/6] Compilando MSIX (Windows)..." -ForegroundColor Yellow
+    dart run msix:create --install-certificate false
+    if ($LASTEXITCODE -ne 0) { throw "Error en build MSIX" }
+}
 
-# 5. Organizar archivos
+# 6. Organizar archivos
 Write-Host "[5/6] Organizando archivos..." -ForegroundColor Yellow
 if (!(Test-Path $releaseFolder)) { New-Item -ItemType Directory -Path $releaseFolder | Out-Null }
+
+$assetsToUpload = @()
 $apkDest = Join-Path $releaseFolder "ZMusic_v$version.apk"
 $msixDest = Join-Path $releaseFolder "ZMusic_v$version.msix"
-Copy-Item "build\app\outputs\flutter-apk\app-release.apk" $apkDest -Force
-Copy-Item "build\windows\x64\runner\Release\zmusic.msix" $msixDest -Force
+
+if ($buildAndroid) {
+    Copy-Item "build\app\outputs\flutter-apk\app-release.apk" $apkDest -Force
+    $assetsToUpload += $apkDest
+}
+if ($buildWindows) {
+    Copy-Item "build\windows\x64\runner\Release\zmusic.msix" $msixDest -Force
+    $assetsToUpload += $msixDest
+}
 
 # 6. Tag y Push Final
 Write-Host "[6/6] Sincronizando con GitHub..." -ForegroundColor Yellow
@@ -84,7 +100,7 @@ git push origin "v$version"
 
 # 7. GitHub Release Atómico
 Write-Host "[7/7] Creando lanzamiento oficial en GitHub..." -ForegroundColor Yellow
-gh release create "v$version" $apkDest $msixDest --title "v$version" --notes "feat: $changeLog"
+gh release create "v$version" $assetsToUpload --title "v$version" --notes "feat: $changeLog"
 
 Write-Host ""
 Write-Host "====================================================" -ForegroundColor Green
