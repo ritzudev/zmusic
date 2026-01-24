@@ -84,12 +84,23 @@ $apkDest = Join-Path $releaseFolder "ZMusic_v$version.apk"
 $msixDest = Join-Path $releaseFolder "ZMusic_v$version.msix"
 
 if ($buildAndroid) {
+    Write-Host "   -> Moviendo nuevo APK..." -ForegroundColor Gray
     Copy-Item "build\app\outputs\flutter-apk\app-release.apk" $apkDest -Force
     $assetsToUpload += $apkDest
 }
+
 if ($buildWindows) {
+    Write-Host "   -> Moviendo nuevo MSIX..." -ForegroundColor Gray
     Copy-Item "build\windows\x64\runner\Release\zmusic.msix" $msixDest -Force
     $assetsToUpload += $msixDest
+} else {
+    # TRUCO: Si no compilamos Windows, buscamos el MSIX más reciente de la carpeta para no dejar el release vacío
+    $latestMsix = Get-ChildItem -Path $releaseFolder -Filter "*.msix" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($latestMsix) {
+        Write-Host "   -> Reutilizando MSIX anterior ($($latestMsix.Name)) para ahorrar tiempo..." -ForegroundColor Gray
+        Copy-Item $latestMsix.FullName $msixDest -Force
+        $assetsToUpload += $msixDest
+    }
 }
 
 # 6. Tag y Push Final
