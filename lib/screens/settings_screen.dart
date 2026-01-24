@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zmusic/providers/theme_provider.dart';
 import 'package:zmusic/services/window_service.dart';
+import 'package:zmusic/services/update_service.dart';
 import 'package:zmusic/theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -173,6 +174,31 @@ class SettingsScreen extends ConsumerWidget {
                       leading: const Icon(Icons.notifications_none),
                       title: const Text('Notificaciones'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {},
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildSectionTitle(context, 'Información'),
+              const SizedBox(height: 12),
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.system_update_alt),
+                      title: const Text('Buscar actualizaciones'),
+                      subtitle: const Text(
+                        'Comprobar si hay una versión más reciente',
+                      ),
+                      onTap: () async {
+                        UpdateService().checkForUpdates(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.info_outline),
+                      title: const Text('Acerca de Z Music'),
+                      subtitle: const Text('Versión 0.1.0'),
                       onTap: () {},
                     ),
                   ],

@@ -13,6 +13,8 @@ import 'package:zmusic/widgets/download_status_bar.dart';
 import 'package:zmusic/providers/youtube_provider.dart';
 import 'package:zmusic/screens/home/home_windows.dart';
 
+import 'package:zmusic/services/update_service.dart';
+
 class MusicHomeScreen extends ConsumerStatefulWidget {
   const MusicHomeScreen({super.key});
 
@@ -31,6 +33,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
     // Verificar caché después de que el widget esté completamente construido
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkCacheAndScan();
+      UpdateService().checkForUpdates(context);
     });
   }
 
