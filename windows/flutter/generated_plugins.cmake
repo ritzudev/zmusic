@@ -9,6 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   screen_retriever_windows
   tray_manager
   window_manager
+  windows_single_instance
   windows_taskbar
 )
 

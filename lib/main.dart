@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:windows_single_instance/windows_single_instance.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zmusic/providers/theme_provider.dart';
@@ -20,10 +22,19 @@ Future<void> homeWidgetBackgroundCallback(Uri? uri) async {
   debugPrint('TAG_DEBUG: [Widget Background Action] $uri');
 }
 
-void main() async {
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isWindows) {
+    await WindowsSingleInstance.ensureSingleInstance(
+      args,
+      "com.ritzu.zmusic",
+      onSecondWindow: (args) async {
+        if (await windowManager.isMinimized()) await windowManager.restore();
+        windowManager.show();
+        windowManager.focus();
+      },
+    );
     MediaKit.ensureInitialized();
     await WindowService().init();
   }

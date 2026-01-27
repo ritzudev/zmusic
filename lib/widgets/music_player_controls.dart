@@ -1,6 +1,8 @@
-import 'dart:io';
+import 'dart:io' as io;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zmusic/models/repeat_mode.dart';
 import 'package:zmusic/providers/audio_player_provider.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:zmusic/widgets/artwork_widget.dart';
@@ -24,7 +26,11 @@ class MusicPlayerControls extends ConsumerWidget {
     }
 
     if (showMiniPlayer) {
-      if (Platform.isWindows) {
+      if (!kIsWeb && io.Platform.isWindows) {
+        return _buildWindowsMiniPlayer(context, playerState, playerNotifier);
+      }
+      // En Web también podemos usar el diseño de Windows si la pantalla es ancha
+      if (kIsWeb && MediaQuery.of(context).size.width > 900) {
         return _buildWindowsMiniPlayer(context, playerState, playerNotifier);
       }
       return _buildMiniPlayer(context, playerState, playerNotifier);
@@ -95,18 +101,17 @@ class MusicPlayerControls extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      // Controles
                       IconButton(
                         icon: const Icon(Icons.skip_previous),
                         onPressed: () => notifier.skipToPrevious(),
-                        color: Theme.of(context).colorScheme.primary,
+                        color: theme.colorScheme.primary,
                       ),
                       Container(
                         height: 40,
                         width: 40,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: theme.colorScheme.primary,
                         ),
                         child: IconButton(
                           icon: Icon(
@@ -119,7 +124,7 @@ class MusicPlayerControls extends ConsumerWidget {
                       IconButton(
                         icon: const Icon(Icons.skip_next),
                         onPressed: () => notifier.skipToNext(),
-                        color: Theme.of(context).colorScheme.primary,
+                        color: theme.colorScheme.primary,
                       ),
                     ],
                   ),
@@ -343,6 +348,26 @@ class MusicPlayerControls extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
+                    icon: Icon(
+                      Icons.shuffle,
+                      color: state.isShuffleEnabled
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                    onPressed: () => notifier.toggleShuffle(),
+                    tooltip: 'Aleatorio',
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      state.repeatMode.icon,
+                      color: state.repeatMode != RepeatMode.none
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                    onPressed: () => notifier.toggleRepeatMode(),
+                    tooltip: 'Repetir',
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.fullscreen),
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                     onPressed: () {
@@ -423,9 +448,27 @@ class MusicPlayerControls extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            if (((!kIsWeb && io.Platform.isWindows) || kIsWeb) &&
+                MediaQuery.of(context).size.width > 800) ...[
+              IconButton(
+                icon: Icon(
+                  Icons.shuffle,
+                  size: 28,
+                  color: state.isShuffleEnabled
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+                onPressed: () => notifier.toggleShuffle(),
+                tooltip: 'Aleatorio',
+              ),
+              const SizedBox(width: 8),
+            ],
             IconButton(
               icon: const Icon(Icons.skip_previous, size: 40),
               onPressed: () => notifier.skipToPrevious(),
+              tooltip: 'Anterior',
             ),
             const SizedBox(width: 16),
             Container(
@@ -441,13 +484,32 @@ class MusicPlayerControls extends ConsumerWidget {
                 ),
                 onPressed: () => notifier.togglePlayPause(),
                 padding: const EdgeInsets.all(16),
+                tooltip: state.isPlaying ? 'Pausar' : 'Reproducir',
               ),
             ),
             const SizedBox(width: 16),
             IconButton(
               icon: const Icon(Icons.skip_next, size: 40),
               onPressed: () => notifier.skipToNext(),
+              tooltip: 'Siguiente',
             ),
+            if (((!kIsWeb && io.Platform.isWindows) || kIsWeb) &&
+                MediaQuery.of(context).size.width > 800) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(
+                  state.repeatMode.icon,
+                  size: 28,
+                  color: state.repeatMode != RepeatMode.none
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+                onPressed: () => notifier.toggleRepeatMode(),
+                tooltip: 'Repetir',
+              ),
+            ],
           ],
         ),
       ],
