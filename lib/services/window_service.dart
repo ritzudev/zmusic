@@ -44,6 +44,15 @@ class WindowService extends WindowListener with TrayListener {
     await _initSystemTray();
   }
 
+  Future<void> showWindow() async {
+    if (!Platform.isWindows) return;
+    await windowManager.show();
+    await windowManager.focus();
+    if (await windowManager.isMinimized()) {
+      await windowManager.restore();
+    }
+  }
+
   Future<void> setMinimizeToTray(bool value) async {
     _minimizeToTrayOnClose = value;
     _prefs ??= await SharedPreferences.getInstance();

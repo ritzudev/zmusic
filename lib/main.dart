@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:windows_single_instance/windows_single_instance.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zmusic/providers/theme_provider.dart';
@@ -29,10 +28,8 @@ void main(List<String> args) async {
     await WindowsSingleInstance.ensureSingleInstance(
       args,
       "com.ritzu.zmusic",
-      onSecondWindow: (args) async {
-        if (await windowManager.isMinimized()) await windowManager.restore();
-        windowManager.show();
-        windowManager.focus();
+      onSecondWindow: (args) {
+        WindowService().showWindow();
       },
     );
     MediaKit.ensureInitialized();
