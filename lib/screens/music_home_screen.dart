@@ -151,6 +151,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                   .read(musicSearchQueryProvider.notifier)
                                   .update(value);
                             },
+                            onFieldSubmitted: (_) {},
                             decoration: InputDecoration(
                               prefixIcon: const Icon(Icons.search),
                               suffixIcon: searchQuery.isNotEmpty

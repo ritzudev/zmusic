@@ -218,21 +218,37 @@ class HomeWindows extends ConsumerWidget {
             child: Container(
               height: 48,
               constraints: const BoxConstraints(maxWidth: 400),
-              child: TextField(
-                onChanged: (v) =>
-                    ref.read(musicSearchQueryProvider.notifier).update(v),
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Buscar música, artistas...',
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.1),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
+              child: Consumer(
+                builder: (context, ref, child) {
+                  final searchQuery = ref.watch(musicSearchQueryProvider);
+                  return TextField(
+                    onChanged: (v) =>
+                        ref.read(musicSearchQueryProvider.notifier).update(v),
+                    onSubmitted: (_) {},
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar música, artistas...',
+                      hintStyle: const TextStyle(color: Colors.grey),
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      suffixIcon: searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.grey),
+                              onPressed: () {
+                                ref
+                                    .read(musicSearchQueryProvider.notifier)
+                                    .clear();
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),

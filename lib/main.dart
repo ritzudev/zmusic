@@ -118,16 +118,37 @@ class _MainAppState extends ConsumerState<MainApp> {
           child: Actions(
             actions: <Type, Action<Intent>>{
               PlayPauseIntent: CallbackAction<PlayPauseIntent>(
-                onInvoke: (PlayPauseIntent intent) =>
-                    playerNotifier.togglePlayPause(),
+                onInvoke: (PlayPauseIntent intent) {
+                  final primaryFocus = FocusManager.instance.primaryFocus;
+                  if (primaryFocus != null &&
+                      primaryFocus.context?.widget is EditableText) {
+                    return null;
+                  }
+                  playerNotifier.togglePlayPause();
+                  return null;
+                },
               ),
               SkipPreviousIntent: CallbackAction<SkipPreviousIntent>(
-                onInvoke: (SkipPreviousIntent intent) =>
-                    playerNotifier.skipToPrevious(),
+                onInvoke: (SkipPreviousIntent intent) {
+                  final primaryFocus = FocusManager.instance.primaryFocus;
+                  if (primaryFocus != null &&
+                      primaryFocus.context?.widget is EditableText) {
+                    return null;
+                  }
+                  playerNotifier.skipToPrevious();
+                  return null;
+                },
               ),
               SkipNextIntent: CallbackAction<SkipNextIntent>(
-                onInvoke: (SkipNextIntent intent) =>
-                    playerNotifier.skipToNext(),
+                onInvoke: (SkipNextIntent intent) {
+                  final primaryFocus = FocusManager.instance.primaryFocus;
+                  if (primaryFocus != null &&
+                      primaryFocus.context?.widget is EditableText) {
+                    return null;
+                  }
+                  playerNotifier.skipToNext();
+                  return null;
+                },
               ),
             },
             child: child!,
