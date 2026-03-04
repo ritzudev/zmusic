@@ -5,15 +5,39 @@ import 'package:zmusic/models/song_model.dart';
 import 'package:zmusic/providers/audio_player_provider.dart';
 import 'package:zmusic/providers/music_filter_provider.dart';
 import 'package:zmusic/providers/music_library_provider.dart';
+import 'package:zmusic/services/typing_state.dart';
 import 'package:zmusic/widgets/artwork_widget.dart';
 import 'package:zmusic/widgets/music_player_controls.dart';
 import 'package:zmusic/widgets/scrolling_text.dart';
 
-class HomeWindows extends ConsumerWidget {
+class HomeWindows extends ConsumerStatefulWidget {
   const HomeWindows({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeWindows> createState() => _HomeWindowsState();
+}
+
+class _HomeWindowsState extends ConsumerState<HomeWindows> {
+  final FocusNode _searchFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // Cuando el campo de búsqueda recibe o pierde el foco, actualizamos
+    // TypingState para que el shortcut de Espacio no interfiera.
+    _searchFocusNode.addListener(() {
+      TypingState.isTyping = _searchFocusNode.hasFocus;
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final filteredSongs = ref.watch(filteredSongsProvider);
     final currentTrack = ref.watch(
@@ -222,6 +246,7 @@ class HomeWindows extends ConsumerWidget {
                 builder: (context, ref, child) {
                   final searchQuery = ref.watch(musicSearchQueryProvider);
                   return TextField(
+                    focusNode: _searchFocusNode,
                     onChanged: (v) =>
                         ref.read(musicSearchQueryProvider.notifier).update(v),
                     onSubmitted: (_) {},

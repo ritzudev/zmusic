@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -122,8 +123,9 @@ class MusicAudioHandler extends BaseAudioHandler
       }),
     );
 
-    // Cargar volumen guardado
+    // Cargar volumen guardado y estado previo
     _loadSavedVolume();
+    _loadSavedState();
 
     // Escuchar cuando termina una canción
     _subscriptions.add(
@@ -215,7 +217,7 @@ class MusicAudioHandler extends BaseAudioHandler
       Uint8List? artworkBytes;
 
       if (Platform.isWindows) {
-        // En Windows usamos audio_metadata_reader que SÍ está funcionando
+        // En Windows usamos audio_metadata_reader
         try {
           final file = File(track.filePath);
           final metadata = amr.readMetadata(file, getImage: true);
@@ -223,7 +225,7 @@ class MusicAudioHandler extends BaseAudioHandler
             artworkBytes = metadata.pictures.first.bytes;
           }
         } catch (e) {
-          // Error silencioso al extraer carátula
+          // Error silencioso
         }
       } else {
         // En móviles seguimos usando on_audio_query
@@ -251,7 +253,6 @@ class MusicAudioHandler extends BaseAudioHandler
           final url = LocalServerService().artworkUrl;
           return url != null ? Uri.parse(url) : null;
         }
-        return null;
       }
 
       if (Platform.isWindows) {
@@ -276,19 +277,7 @@ class MusicAudioHandler extends BaseAudioHandler
       return null;
     } catch (e) {
       print('Error al verificar artwork para notificación: $e');
-
-      if (Platform.isWindows && _placeholderBytes != null) {
-        LocalServerService().updateArtwork(
-          _placeholderBytes,
-          mimeType: 'image/png',
-        );
-      }
-
-      // Fallback al placeholder en caso de error
-      if (_placeholderPath != null) {
-        return Uri.file(_placeholderPath!);
-      }
-      return null;
+      return _placeholderPath != null ? Uri.file(_placeholderPath!) : null;
     }
   }
 
@@ -321,12 +310,17 @@ class MusicAudioHandler extends BaseAudioHandler
   }
 
   /// Transmitir el estado actual de reproducción
+  bool? _lastTaskbarPlayingStatus;
   void _broadcastState() {
+    final isPlaying = Platform.isWindows
+        ? (_mkPlayer?.state.playing ?? false)
+        : _player.playing;
+
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
           MediaControl.skipToPrevious,
-          if (_player.playing) MediaControl.pause else MediaControl.play,
+          if (isPlaying) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
           //MediaControl.stop,
           MediaControl.rewind,
@@ -337,18 +331,17 @@ class MusicAudioHandler extends BaseAudioHandler
           MediaAction.seekForward,
           MediaAction.seekBackward,
         },
-        // Índices de botones que aparecen cuando la notificación es pequeña (compacta)
         androidCompactActionIndices: const [0, 1, 2],
-        processingState: const {
-          ProcessingState.idle: AudioProcessingState.idle,
-          ProcessingState.loading: AudioProcessingState.loading,
-          ProcessingState.buffering: AudioProcessingState.buffering,
-          ProcessingState.ready: AudioProcessingState.ready,
-          ProcessingState.completed: AudioProcessingState.completed,
-        }[_player.processingState]!,
-        playing: Platform.isWindows
-            ? (_mkPlayer?.state.playing ?? false)
-            : _player.playing,
+        processingState: Platform.isWindows
+            ? AudioProcessingState.ready
+            : const {
+                ProcessingState.idle: AudioProcessingState.idle,
+                ProcessingState.loading: AudioProcessingState.loading,
+                ProcessingState.buffering: AudioProcessingState.buffering,
+                ProcessingState.ready: AudioProcessingState.ready,
+                ProcessingState.completed: AudioProcessingState.completed,
+              }[_player.processingState]!,
+        playing: isPlaying,
         updatePosition: Platform.isWindows
             ? (_mkPlayer?.state.position ?? Duration.zero)
             : _player.position,
@@ -362,11 +355,16 @@ class MusicAudioHandler extends BaseAudioHandler
         repeatMode: _repeatMode,
       ),
     );
+
     _updateHomeWidget();
-    // En Windows, solo actualizamos el estado (play/pause), NO los metadatos.
-    // Los metadatos los actualizamos solo cuando cambia la canción para no saturar al sistema.
     _updateSMTCStatusOnly();
-    _updateTaskbar();
+
+    // Solo actualizar la barra de tareas si cambió el estado de reproducción
+    // o no se ha inicializado, para evitar sobrecarga y posibles cierres.
+    if (_lastTaskbarPlayingStatus != isPlaying) {
+      _lastTaskbarPlayingStatus = isPlaying;
+      _updateTaskbar();
+    }
   }
 
   /// Actualizar SOLO el estado de reproducción de SMTC (play/pause)
@@ -548,6 +546,9 @@ class MusicAudioHandler extends BaseAudioHandler
         await play();
       }
     }
+
+    // Guardar estado después de establecer la playlist
+    _saveState();
   }
 
   /// Cargar una pista específica
@@ -601,6 +602,9 @@ class MusicAudioHandler extends BaseAudioHandler
       }
 
       _broadcastState();
+
+      // Guardar índice actual al cargar pista
+      _saveState();
     } catch (_) {}
   }
 
@@ -783,6 +787,82 @@ class MusicAudioHandler extends BaseAudioHandler
     }
   }
 
+  /// Cargar el estado guardado del reproductor (playlist, canción, modo)
+  Future<void> _loadSavedState() async {
+    try {
+      _prefs ??= await SharedPreferences.getInstance();
+
+      // Cargar modo de repetición
+      final lastRepeatModeIndex = _prefs?.getInt('last_repeat_mode');
+      if (lastRepeatModeIndex != null) {
+        _repeatMode = AudioServiceRepeatMode.values[lastRepeatModeIndex];
+      }
+
+      _isShuffleEnabled = _prefs?.getBool('last_shuffle_enabled') ?? false;
+
+      // Cargar Playlist original
+      final playlistJson = _prefs?.getStringList('last_original_playlist');
+      if (playlistJson != null && playlistJson.isNotEmpty) {
+        final tracks = playlistJson
+            .map((s) => MusicTrack.fromJson(jsonDecode(s)))
+            .toList();
+
+        final lastIndex = _prefs?.getInt('last_index') ?? 0;
+
+        // Restaurar la playlist sin reproducir inmediatamente
+        await setPlaylist(
+          tracks,
+          initialIndex: lastIndex,
+          playImmediately: false,
+        );
+
+        // Asegurarse de que el estado inicial se refleje
+        playbackState.add(
+          playbackState.value.copyWith(
+            shuffleMode: _isShuffleEnabled
+                ? AudioServiceShuffleMode.all
+                : AudioServiceShuffleMode.none,
+            repeatMode: _repeatMode,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error al cargar estado del reproductor: $e');
+    }
+  }
+
+  /// Guardar el estado actual del reproductor
+  Future<void> _saveState() async {
+    try {
+      _prefs ??= await SharedPreferences.getInstance();
+
+      // Guardar la playlist completa
+      final originalPlaylistJson = _originalPlaylist
+          .map((t) => jsonEncode(t.toJson()))
+          .toList();
+      await _prefs?.setStringList(
+        'last_original_playlist',
+        originalPlaylistJson,
+      );
+
+      await _prefs?.setBool('last_shuffle_enabled', _isShuffleEnabled);
+      await _prefs?.setInt('last_repeat_mode', _repeatMode.index);
+
+      // Guardar el índice de la canción actual en la lista ORIGINAL
+      final track = currentTrack;
+      if (track != null) {
+        final originalIndex = _originalPlaylist.indexWhere(
+          (t) => t.id == track.id,
+        );
+        if (originalIndex != -1) {
+          await _prefs?.setInt('last_index', originalIndex);
+        }
+      }
+    } catch (e) {
+      print('Error al guardar estado del reproductor: $e');
+    }
+  }
+
   @override
   Future<void> onTaskRemoved() async {
     // NO detener la reproducción cuando se cierra la app desde recientes
@@ -815,6 +895,7 @@ class MusicAudioHandler extends BaseAudioHandler
     }
 
     _broadcastState();
+    _saveState();
   }
 
   @override
@@ -874,6 +955,7 @@ class MusicAudioHandler extends BaseAudioHandler
     );
 
     playbackState.add(playbackState.value.copyWith(shuffleMode: shuffleMode));
+    _saveState();
   }
 
   /// Liberar recursos

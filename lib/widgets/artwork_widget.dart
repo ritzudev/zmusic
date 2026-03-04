@@ -14,10 +14,6 @@ final artworkProvider =
       ({int id, ArtworkType type, String? filePath})
     >((ref, arg) async {
       try {
-        debugPrint(
-          'YT_DEBUG: Querying artwork for ID: ${arg.id}, Type: ${arg.type}',
-        );
-
         // 1. Intentar con on_audio_query
         if (Platform.isAndroid) {
           final audioStatus = await Permission.audio.status;
@@ -44,15 +40,11 @@ final artworkProvider =
 
         // 2. FALLBACK: Leer directamente del archivo
         if (arg.filePath != null && await File(arg.filePath!).exists()) {
-          debugPrint('YT_DEBUG: Fallback lectura directa: ${arg.filePath}');
           final file = File(arg.filePath!);
           final metadata = readMetadata(file, getImage: true);
 
           if (metadata.pictures.isNotEmpty) {
             final bytes = metadata.pictures.first.bytes;
-            debugPrint(
-              'YT_DEBUG: Artwork Found via Direct Reading (${bytes.length} bytes)',
-            );
             return bytes;
           }
         }

@@ -14,6 +14,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:zmusic/providers/audio_player_provider.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:zmusic/services/window_service.dart';
+import 'package:zmusic/services/typing_state.dart';
 
 @pragma('vm:entry-point')
 Future<void> homeWidgetBackgroundCallback(Uri? uri) async {
@@ -119,11 +120,9 @@ class _MainAppState extends ConsumerState<MainApp> {
             actions: <Type, Action<Intent>>{
               PlayPauseIntent: CallbackAction<PlayPauseIntent>(
                 onInvoke: (PlayPauseIntent intent) {
-                  final primaryFocus = FocusManager.instance.primaryFocus;
-                  if (primaryFocus != null &&
-                      primaryFocus.context?.widget is EditableText) {
-                    return null;
-                  }
+                  // TypingState.isTyping se actualiza desde el FocusNode del TextField.
+                  // Si el usuario está escribiendo, ignoramos el shortcut del espacio.
+                  if (TypingState.isTyping) return null;
                   playerNotifier.togglePlayPause();
                   return null;
                 },

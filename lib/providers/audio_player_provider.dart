@@ -6,8 +6,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:zmusic/models/song_model.dart';
 import 'package:zmusic/services/audio_handler_service.dart';
 import 'package:zmusic/models/repeat_mode.dart';
-import 'package:on_audio_query_pluse/on_audio_query.dart';
-import 'package:zmusic/widgets/artwork_widget.dart';
 
 part 'audio_player_provider.g.dart';
 
@@ -175,11 +173,42 @@ class AudioPlayer extends _$AudioPlayer {
             currentIndex: _handler!.currentIndex,
           );
 
-          // Pre-cachear el artwork de la siguiente canción
-          _preCacheNextArtwork();
+          // ELIMINADO: _preCacheNextArtwork() para ahorrar memoria y procesamiento en segundo plano
+          // Esto solía disparar on_audio_query muy seguido.
         }
       });
       _subscriptions.add(mediaItemSub);
+
+      // Escuchar cambios en la cola (playlist)
+      final queueSub = _handler!.queue.listen((queue) {
+        state = state.copyWith(playlist: _handler!.playlist);
+      });
+      _subscriptions.add(queueSub);
+
+      // Escuchar cambios en el estado de playback (repeat y shuffle)
+      final playbackStateSub = _handler!.playbackState.listen((pbState) {
+        // Mapear AudioServiceRepeatMode de vuelta a nuestro RepeatMode
+        RepeatMode repeatMode;
+        switch (pbState.repeatMode) {
+          case AudioServiceRepeatMode.none:
+            repeatMode = RepeatMode.none;
+            break;
+          case AudioServiceRepeatMode.one:
+            repeatMode = RepeatMode.one;
+            break;
+          case AudioServiceRepeatMode.all:
+          case AudioServiceRepeatMode.group:
+            repeatMode = RepeatMode.all;
+            break;
+        }
+
+        state = state.copyWith(
+          repeatMode: repeatMode,
+          isShuffleEnabled: pbState.shuffleMode == AudioServiceShuffleMode.all,
+          currentIndex: pbState.queueIndex ?? state.currentIndex,
+        );
+      });
+      _subscriptions.add(playbackStateSub);
 
       // Marcar el handler como listo
       if (_handlerReadyCompleter != null &&
@@ -194,23 +223,6 @@ class AudioPlayer extends _$AudioPlayer {
         _handlerReadyCompleter!.completeError(e);
       }
     }
-  }
-
-  /// Pre-cachear el artwork de la siguiente canción
-  void _preCacheNextArtwork() {
-    if (state.playlist.isEmpty) return;
-
-    final nextIndex = (state.currentIndex + 1) % state.playlist.length;
-    final nextTrack = state.playlist[nextIndex];
-
-    // Disparar la carga del artwork para que esté en memoria cuando se necesite
-    ref.read(
-      artworkProvider((
-        id: nextTrack.songId,
-        type: ArtworkType.AUDIO,
-        filePath: nextTrack.filePath,
-      )).future,
-    );
   }
 
   /// Esperar a que el handler esté listo
