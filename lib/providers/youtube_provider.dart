@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:on_audio_query_pluse/on_audio_query.dart';
@@ -257,11 +258,27 @@ class YouTubeDownload extends _$YouTubeDownload {
       // 2. Verificar si podemos leer detalles del video primero
       Video? fullVideo;
       try {
-        fullVideo = await _yt.videos.get(video.id);
+        print('DEBUG_YT: Solicitando información del video a YouTube...');
+        fullVideo = await _yt.videos
+            .get(video.id)
+            .timeout(
+              const Duration(seconds: 15),
+              onTimeout: () {
+                throw TimeoutException(
+                  'Se agotó el tiempo esperando la info del video',
+                );
+              },
+            );
+        print('DEBUG_YT: Información obtenida correctamente.');
       } catch (e) {
-        throw Exception('YouTube no permite leer este video: $e');
+        print('DEBUG_YT: Error obteniendo info del video: $e');
+        print(
+          'DEBUG_YT: Usando la información básica del video como respaldo.',
+        );
+        fullVideo = null; // Fallback to video.thumbnailUrl later
       }
 
+      print('DEBUG_YT: Solicitando el manifiesto de streams...');
       // 3. Obtener el manifiesto
       state = DownloadState(
         progress: 0.0,
@@ -274,10 +291,7 @@ class YouTubeDownload extends _$YouTubeDownload {
       StreamManifest? manifest;
       try {
         manifest = await _yt.videos.streams
-            .getManifest(
-              video.id,
-              ytClients: [YoutubeApiClient.ios, YoutubeApiClient.androidVr],
-            )
+            .getManifest(video.id, ytClients: [YoutubeApiClient.androidVr])
             .timeout(
               const Duration(seconds: 30),
               onTimeout: () {
@@ -285,6 +299,7 @@ class YouTubeDownload extends _$YouTubeDownload {
               },
             );
       } catch (e) {
+        print('DEBUG_YT: Error obteniendo el manifiesto: $e');
         if (e == 'TIMEOUT_MANIFEST') {
           throw Exception(
             'Tiempo de espera agotado (30s). YouTube está bloqueando la conexión.',
@@ -335,6 +350,7 @@ class YouTubeDownload extends _$YouTubeDownload {
       final file = File('${directory.path}/$fileName.$extension');
 
       // 5. Descargar miniatura (Mejor resolución real posible)
+      print('DEBUG_YT: Iniciando descarga de miniatura');
       state = DownloadState(
         progress: 0.0,
         video: video,
@@ -345,60 +361,110 @@ class YouTubeDownload extends _$YouTubeDownload {
 
       try {
         final thumbCandidates = [
-          if (fullVideo.thumbnails.maxResUrl.isNotEmpty)
-            fullVideo.thumbnails.maxResUrl,
-          if (fullVideo.thumbnails.highResUrl.isNotEmpty)
-            fullVideo.thumbnails.highResUrl,
-          if (fullVideo.thumbnails.standardResUrl.isNotEmpty)
-            fullVideo.thumbnails.standardResUrl,
+          if (fullVideo?.thumbnails.maxResUrl.isNotEmpty == true)
+            fullVideo!.thumbnails.maxResUrl,
+          if (fullVideo?.thumbnails.highResUrl.isNotEmpty == true)
+            fullVideo!.thumbnails.highResUrl,
+          if (fullVideo?.thumbnails.standardResUrl.isNotEmpty == true)
+            fullVideo!.thumbnails.standardResUrl,
           video.thumbnailUrl,
         ];
 
         Uint8List? bestImageBytes;
         for (String url in thumbCandidates) {
+          print('DEBUG_YT: Probando URL de miniatura: $url');
           try {
             final response = await http
                 .get(Uri.parse(url))
                 .timeout(const Duration(seconds: 10));
             if (response.statusCode == 200) {
-              // YouTube a veces devuelve una imagen de 120x90 (aprox 1k-3k bytes)
-              // cuando maxresdefault no existe realmente.
               if (response.bodyBytes.length > 5000) {
                 bestImageBytes = response.bodyBytes;
+                print('DEBUG_YT: Miniatura obtenida correctamente');
                 break;
-              } else {}
+              } else {
+                print('DEBUG_YT: Miniatura demasiado pequeña');
+              }
+            } else {
+              print(
+                'DEBUG_YT: Error HTTP en miniatura: ${response.statusCode}',
+              );
             }
-          } catch (_) {}
+          } catch (e) {
+            print('DEBUG_YT: Error obteniendo miniatura: $e');
+          }
         }
 
         if (bestImageBytes != null) {
           final thumbnailFile = File('${directory.path}/$fileName.jpg');
           await thumbnailFile.writeAsBytes(bestImageBytes);
         }
-      } catch (_) {}
+      } catch (e) {
+        print('DEBUG_YT: Error global en descarga de miniatura: $e');
+      }
 
+      print('DEBUG_YT: Iniciando descarga de stream de audio');
       // 5. Descargar
+      state = DownloadState(
+        progress: 0.0,
+        video: video,
+        totalBytes: audioStream.size.totalBytes,
+        downloadedBytes: 0,
+        status: DownloadStatus.downloading,
+      );
+
+      print('DEBUG_YT: Obteniendo stream de YoutubeExplode');
+      // Usar el propio cliente de YoutubeExplode en lugar de HTTP directo
+      // para asegurar que las cabeceras/firmas coincidan.
       final stream = _yt.videos.streams.get(audioStream);
+
+      print('DEBUG_YT: Abriendo archivo para escritura');
       final fileStream = file.openWrite();
       int downloadedBytes = 0;
 
-      await for (final chunk in stream) {
-        fileStream.add(chunk);
-        downloadedBytes += chunk.length;
-        final currentProgress = (downloadedBytes / audioStream.size.totalBytes)
-            .clamp(0.0, 1.0);
+      try {
+        print('DEBUG_YT: Escuchando chunks del stream');
+        await for (final chunk in stream.timeout(
+          const Duration(seconds: 15),
+          onTimeout: (sink) {
+            print('DEBUG_YT: Timeout del stream detectado durante la descarga');
+            sink.addError(
+              Exception(
+                'El servidor de YouTube limitó la velocidad a cero (Timeout).',
+              ),
+            );
+          },
+        )) {
+          fileStream.add(chunk);
+          downloadedBytes += chunk.length;
+          final currentProgress =
+              (downloadedBytes / audioStream.size.totalBytes).clamp(0.0, 1.0);
 
-        state = DownloadState(
-          progress: currentProgress,
-          video: video,
-          totalBytes: audioStream.size.totalBytes,
-          downloadedBytes: downloadedBytes,
-          status: currentProgress < 0.95
-              ? DownloadStatus.downloading
-              : DownloadStatus.finalizing,
-        );
+          if (downloadedBytes == chunk.length) {
+            print('DEBUG_YT: Primer chunk recibido, descargando...');
+          }
+
+          state = DownloadState(
+            progress: currentProgress,
+            video: video,
+            totalBytes: audioStream.size.totalBytes,
+            downloadedBytes: downloadedBytes,
+            status: currentProgress < 0.95
+                ? DownloadStatus.downloading
+                : DownloadStatus.finalizing,
+          );
+        }
+        print('DEBUG_YT: Descarga de chunks terminada');
+      } catch (e) {
+        print('DEBUG_YT: Excepción durante la descarga del stream: $e');
+        await fileStream.close();
+        if (await file.exists()) {
+          await file.delete();
+        }
+        throw Exception('Error al descargar el audio: $e');
       }
 
+      print('DEBUG_YT: Haciendo flush y close del fileStream');
       await fileStream.flush();
       await fileStream.close();
 

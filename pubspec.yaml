@@ -26,7 +26,7 @@ dependencies:
   on_audio_query_pluse: ^3.0.6
   audio_service: ^0.18.15
   rxdart: ^0.28.0
-  youtube_explode_dart: ^3.0.5
+  youtube_explode_dart: ^3.1.0
   http: ^1.2.2
   dio: ^5.7.0
   audio_metadata_reader: 
@@ -44,6 +44,7 @@ dependencies:
   package_info_plus: ^9.0.0
   ota_update: ^7.1.0
   windows_single_instance: ^1.1.0
+  hotkey_manager: ^0.2.3
 
 dependency_overrides:
   freezed_annotation: ^3.0.0

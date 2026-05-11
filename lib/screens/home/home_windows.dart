@@ -19,6 +19,7 @@ class HomeWindows extends ConsumerStatefulWidget {
 
 class _HomeWindowsState extends ConsumerState<HomeWindows> {
   final FocusNode _searchFocusNode = FocusNode();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -33,6 +34,7 @@ class _HomeWindowsState extends ConsumerState<HomeWindows> {
   @override
   void dispose() {
     _searchFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -246,6 +248,7 @@ class _HomeWindowsState extends ConsumerState<HomeWindows> {
                 builder: (context, ref, child) {
                   final searchQuery = ref.watch(musicSearchQueryProvider);
                   return TextField(
+                    controller: _searchController,
                     focusNode: _searchFocusNode,
                     onChanged: (v) =>
                         ref.read(musicSearchQueryProvider.notifier).update(v),
@@ -259,6 +262,7 @@ class _HomeWindowsState extends ConsumerState<HomeWindows> {
                           ? IconButton(
                               icon: const Icon(Icons.clear, color: Colors.grey),
                               onPressed: () {
+                                _searchController.clear();
                                 ref
                                     .read(musicSearchQueryProvider.notifier)
                                     .clear();

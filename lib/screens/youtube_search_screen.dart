@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zmusic/providers/youtube_provider.dart';
 import 'package:zmusic/widgets/download_status_bar.dart';
+import 'package:zmusic/services/typing_state.dart';
 
 class YouTubeSearchScreen extends ConsumerStatefulWidget {
   const YouTubeSearchScreen({super.key});
@@ -13,7 +14,16 @@ class YouTubeSearchScreen extends ConsumerStatefulWidget {
 
 class _YouTubeSearchScreenState extends ConsumerState<YouTubeSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   final Set<String> _selectedVideoIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(() {
+      TypingState.isTyping = _searchFocusNode.hasFocus;
+    });
+  }
 
   void _onSearch() {
     if (_searchController.text.trim().isNotEmpty) {
@@ -34,6 +44,11 @@ class _YouTubeSearchScreenState extends ConsumerState<YouTubeSearchScreen> {
 
   @override
   void dispose() {
+    // Restaurar el estado por seguridad al cerrar la pantalla
+    if (_searchFocusNode.hasFocus) {
+      TypingState.isTyping = false;
+    }
+    _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -151,6 +166,7 @@ class _YouTubeSearchScreenState extends ConsumerState<YouTubeSearchScreen> {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
+                    focusNode: _searchFocusNode,
                     autofocus: true,
                     decoration: InputDecoration(
                       hintText: "Nombre de la canción o URL...",

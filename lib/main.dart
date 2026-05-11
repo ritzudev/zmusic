@@ -59,6 +59,48 @@ class _MainAppState extends ConsumerState<MainApp> {
     if (Platform.isAndroid || Platform.isIOS) {
       _setupHomeWidgetListener();
     }
+    if (Platform.isWindows) {
+      // Necesitamos esperar al siguiente frame para tener acceso a ref
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _setupHotkeys();
+      });
+    }
+  }
+
+  void _setupHotkeys() {
+    final playerNotifier = ref.read(audioPlayerProvider.notifier);
+
+    HardwareKeyboard.instance.addHandler((KeyEvent event) {
+      // Solo nos interesan los eventos cuando se PRESIONA la tecla
+      if (event is! KeyDownEvent) return false;
+
+      // Si está escribiendo (validado a través de TypingState desde el TextField),
+      // DEJAMOS PASAR la tecla para que se escriba (retornamos false)
+      if (TypingState.isTyping) {
+        return false;
+      }
+
+      // Si NO está escribiendo, evaluamos qué tecla presionó
+      if (event.logicalKey == LogicalKeyboardKey.space) {
+        playerNotifier.togglePlayPause();
+        return true; // Retornar true significa que interceptamos la tecla (no hace nada más)
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        playerNotifier.skipToNext();
+        return true;
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        playerNotifier.skipToPrevious();
+        return true;
+      } else if (event.logicalKey == LogicalKeyboardKey.keyS) {
+        playerNotifier.toggleShuffle();
+        return true;
+      } else if (event.logicalKey == LogicalKeyboardKey.keyR) {
+        playerNotifier.toggleRepeatMode();
+        return true;
+      }
+
+      // Para cualquier otra tecla, simplemente no hacemos nada
+      return false;
+    });
   }
 
   void _setupHomeWidgetListener() {
@@ -99,7 +141,6 @@ class _MainAppState extends ConsumerState<MainApp> {
   @override
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
-    final playerNotifier = ref.read(audioPlayerProvider.notifier);
 
     return MaterialApp(
       theme: AppTheme.lightWithPalette(themeState.palette),
@@ -107,53 +148,6 @@ class _MainAppState extends ConsumerState<MainApp> {
       themeMode: themeState.mode,
       debugShowCheckedModeBanner: false,
       home: const MusicHomeScreen(),
-      builder: (context, child) {
-        return Shortcuts(
-          shortcuts: <LogicalKeySet, Intent>{
-            LogicalKeySet(LogicalKeyboardKey.space): const PlayPauseIntent(),
-            LogicalKeySet(LogicalKeyboardKey.arrowLeft):
-                const SkipPreviousIntent(),
-            LogicalKeySet(LogicalKeyboardKey.arrowRight):
-                const SkipNextIntent(),
-          },
-          child: Actions(
-            actions: <Type, Action<Intent>>{
-              PlayPauseIntent: CallbackAction<PlayPauseIntent>(
-                onInvoke: (PlayPauseIntent intent) {
-                  // TypingState.isTyping se actualiza desde el FocusNode del TextField.
-                  // Si el usuario está escribiendo, ignoramos el shortcut del espacio.
-                  if (TypingState.isTyping) return null;
-                  playerNotifier.togglePlayPause();
-                  return null;
-                },
-              ),
-              SkipPreviousIntent: CallbackAction<SkipPreviousIntent>(
-                onInvoke: (SkipPreviousIntent intent) {
-                  final primaryFocus = FocusManager.instance.primaryFocus;
-                  if (primaryFocus != null &&
-                      primaryFocus.context?.widget is EditableText) {
-                    return null;
-                  }
-                  playerNotifier.skipToPrevious();
-                  return null;
-                },
-              ),
-              SkipNextIntent: CallbackAction<SkipNextIntent>(
-                onInvoke: (SkipNextIntent intent) {
-                  final primaryFocus = FocusManager.instance.primaryFocus;
-                  if (primaryFocus != null &&
-                      primaryFocus.context?.widget is EditableText) {
-                    return null;
-                  }
-                  playerNotifier.skipToNext();
-                  return null;
-                },
-              ),
-            },
-            child: child!,
-          ),
-        );
-      },
       routes: {
         '/now-playing': (context) => const NowPlayingScreen(),
         '/settings': (context) => const SettingsScreen(),
@@ -162,16 +156,4 @@ class _MainAppState extends ConsumerState<MainApp> {
       },
     );
   }
-}
-
-class PlayPauseIntent extends Intent {
-  const PlayPauseIntent();
-}
-
-class SkipPreviousIntent extends Intent {
-  const SkipPreviousIntent();
-}
-
-class SkipNextIntent extends Intent {
-  const SkipNextIntent();
 }
