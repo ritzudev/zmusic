@@ -17,6 +17,7 @@ class MusicLibrary extends _$MusicLibrary {
   static const String _cacheKey = 'music_library_cache';
   static const String _lastScanKey = 'last_scan_timestamp';
   static const String _customFolderKey = 'custom_music_folder';
+  static const String _favoritesKey = 'favorite_songs';
 
   @override
   List<MusicTrack> build() {
@@ -30,18 +31,37 @@ class MusicLibrary extends _$MusicLibrary {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cachedData = prefs.getString(_cacheKey);
+      final favoriteIds = prefs.getStringList(_favoritesKey) ?? <String>[];
 
       if (cachedData != null && cachedData.isNotEmpty) {
         final List<dynamic> jsonList = json.decode(cachedData);
         final songs = jsonList
-            .map((json) => MusicTrack.fromJson(json))
+            .map((json) {
+              final track = MusicTrack.fromJson(json);
+              // Ensure we restore favorites from the persistent favorites list
+              return track.copyWith(
+                isFavorite: favoriteIds.contains(track.id) || track.isFavorite,
+              );
+            })
             .toList();
         state = songs;
+        
+        // Update favorites key with any favorites that were in cache but not in the list
+        _syncFavorites(songs);
       }
     } catch (e) {
       // Si hay error al cargar caché, simplemente no hacer nada
       print('Error al cargar caché: $e');
     }
+  }
+
+  Future<void> _syncFavorites(List<MusicTrack> currentSongs) async {
+    final prefs = await SharedPreferences.getInstance();
+    final favoriteIds = currentSongs
+        .where((song) => song.isFavorite)
+        .map((song) => song.id)
+        .toList();
+    await prefs.setStringList(_favoritesKey, favoriteIds);
   }
 
   // Guardar biblioteca en caché
@@ -156,12 +176,32 @@ class MusicLibrary extends _$MusicLibrary {
       // Escanear todas las canciones del dispositivo
       final List<MusicTrack> songs = await querySongs();
 
-      state = songs;
+      final prefs = await SharedPreferences.getInstance();
+      final List<String> savedFavorites = prefs.getStringList(_favoritesKey) ?? <String>[];
+
+      // Preserve existing favorites from state or saved preferences
+      final Set<String> favoriteIds = state
+          .where((song) => song.isFavorite)
+          .map((song) => song.id)
+          .toSet()
+        ..addAll(savedFavorites);
+
+      final List<MusicTrack> updatedSongs = songs.map((song) {
+        if (favoriteIds.contains(song.id)) {
+          return song.copyWith(isFavorite: true);
+        }
+        return song;
+      }).toList();
+
+      state = updatedSongs;
+
+      // Update the unified favorites list
+      await _syncFavorites(updatedSongs);
 
       // Guardar en caché
-      await _saveToCache(songs);
+      await _saveToCache(updatedSongs);
 
-      return '${songs.length} canción(es) encontrada(s)';
+      return '${updatedSongs.length} canción(es) encontrada(s)';
     } catch (e) {
       return 'Error al escanear música: $e';
     }
@@ -456,6 +496,8 @@ class MusicLibrary extends _$MusicLibrary {
         else
           song,
     ];
+    
+    await _syncFavorites(state);
     await _saveToCache(state);
   }
 
