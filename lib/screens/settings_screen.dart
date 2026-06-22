@@ -165,44 +165,23 @@ class SettingsScreen extends ConsumerWidget {
                 _buildSectionTitle(context, 'Descargas'),
                 const SizedBox(height: 12),
                 Card(
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: Icon(
-                          Icons.downloading_rounded,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        title: const Text('Servidor de Descargas'),
-                        subtitle: Text(
-                          ref.watch(settingsProvider).cobaltUrl,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: const Icon(Icons.edit, size: 20),
-                        onTap: () {
-                          _showDownloadServerUrlDialog(context, ref);
-                        },
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: Icon(
-                          Icons.cookie_rounded,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        title: const Text('Cookies de YouTube'),
-                        subtitle: Text(
-                          ref.watch(settingsProvider).youtubeCookies.isNotEmpty
-                              ? 'Configurado (Evita bloqueos de IP)'
-                              : 'No configurado (YouTube puede bloquearte)',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: const Icon(Icons.edit, size: 20),
-                        onTap: () {
-                          _showYoutubeCookiesDialog(context, ref);
-                        },
-                      ),
-                    ],
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.cookie_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    title: const Text('Cookies de YouTube'),
+                    subtitle: Text(
+                      ref.watch(settingsProvider).youtubeCookies.isNotEmpty
+                          ? 'Configurado (Evita bloqueos de IP)'
+                          : 'No configurado (YouTube puede bloquearte)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.edit, size: 20),
+                    onTap: () {
+                      _showYoutubeCookiesDialog(context, ref);
+                    },
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -262,56 +241,6 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-
-  void _showDownloadServerUrlDialog(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController(
-      text: ref.read(settingsProvider).cobaltUrl,
-    );
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Servidor de Descargas'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Ingresa la URL de tu servidor de descargas (ZMusic Server) para evitar bloqueos de YouTube.',
-                style: TextStyle(fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  labelText: 'URL de la API',
-                  hintText: 'https://zmusic-server.onrender.com',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.url,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final url = controller.text.trim();
-                if (url.isNotEmpty) {
-                  ref.read(settingsProvider.notifier).setCobaltUrl(url);
-                }
-                Navigator.pop(context);
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
     );
   }
 

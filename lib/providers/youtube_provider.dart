@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -129,6 +128,7 @@ enum DownloadStatus {
   downloading, // Descargando audio
   writingMetadata, // Guardando información
   finalizing, // Finalizando
+  failed, // Descarga fallida
 }
 
 class DownloadState {
@@ -137,6 +137,8 @@ class DownloadState {
   final int totalBytes;
   final int downloadedBytes;
   final DownloadStatus status;
+  final List<String> logs;
+  final String? errorMessage;
 
   DownloadState({
     required this.progress,
@@ -144,7 +146,29 @@ class DownloadState {
     required this.totalBytes,
     required this.downloadedBytes,
     required this.status,
+    this.logs = const [],
+    this.errorMessage,
   });
+
+  DownloadState copyWith({
+    double? progress,
+    YouTubeVideoResult? video,
+    int? totalBytes,
+    int? downloadedBytes,
+    DownloadStatus? status,
+    List<String>? logs,
+    String? errorMessage,
+  }) {
+    return DownloadState(
+      progress: progress ?? this.progress,
+      video: video ?? this.video,
+      totalBytes: totalBytes ?? this.totalBytes,
+      downloadedBytes: downloadedBytes ?? this.downloadedBytes,
+      status: status ?? this.status,
+      logs: logs ?? this.logs,
+      errorMessage: errorMessage ?? this.errorMessage,
+    );
+  }
 }
 
 @riverpod
@@ -252,6 +276,17 @@ class YouTubeDownload extends _$YouTubeDownload {
     return null; // null if not downloading
   }
 
+  void clear() {
+    state = null;
+  }
+
+  void _addLog(String message) {
+    print('DEBUG_YT: $message');
+    if (state != null) {
+      state = state!.copyWith(logs: [...state!.logs, message]);
+    }
+  }
+
   Map<String, String> _parseVideoTitle(
     String videoTitle,
     String channelAuthor,
@@ -354,7 +389,9 @@ class YouTubeDownload extends _$YouTubeDownload {
   Future<String?> downloadAudio(YouTubeVideoResult video) async {
     final globalStopwatch = Stopwatch()..start();
     final stepStopwatch = Stopwatch()..start();
-    print('DEBUG_YT: [INICIO] Comenzando proceso de descarga para el video: "${video.title}" (ID: ${video.id})');
+    
+    final initialLog = '[INICIO] Comenzando proceso de descarga para el video: "${video.title}" (ID: ${video.id})';
+    print('DEBUG_YT: $initialLog');
 
     try {
       final manualCookies = ref.read(settingsProvider).youtubeCookies;
@@ -368,12 +405,13 @@ class YouTubeDownload extends _$YouTubeDownload {
         totalBytes: 0,
         downloadedBytes: 0,
         status: DownloadStatus.analyzing,
+        logs: [initialLog],
       );
 
       // 1. Solicitar permisos y preparar directorios
-      print('DEBUG_YT: [1/7] Solicitando permisos de almacenamiento...');
+      _addLog('[1/7] Solicitando permisos de almacenamiento...');
       await ref.read(musicLibraryProvider.notifier).requestStoragePermission();
-      print('DEBUG_YT: [1/7] Permisos resueltos en ${stepStopwatch.elapsedMilliseconds} ms.');
+      _addLog('[1/7] Permisos resueltos en ${stepStopwatch.elapsedMilliseconds} ms.');
       stepStopwatch.reset();
 
       // Preparar ruta y nombres compartidos
@@ -388,9 +426,9 @@ class YouTubeDownload extends _$YouTubeDownload {
 
       final directory = Directory(downloadPath);
       if (!await directory.exists()) {
-        print('DEBUG_YT: [PREPARACIÓN] Creando directorio: $downloadPath');
+        _addLog('[PREPARACIÓN] Creando directorio: $downloadPath');
         await directory.create(recursive: true);
-        print('DEBUG_YT: [PREPARACIÓN] Directorio creado en ${stepStopwatch.elapsedMilliseconds} ms.');
+        _addLog('[PREPARACIÓN] Directorio creado en ${stepStopwatch.elapsedMilliseconds} ms.');
       }
       stepStopwatch.reset();
 
@@ -404,7 +442,7 @@ class YouTubeDownload extends _$YouTubeDownload {
       // 2. Verificar si podemos leer detalles del video primero (útil para la miniatura de alta resolución)
       Video? fullVideo;
       try {
-        print('DEBUG_YT: [2/7] Solicitando información extendida del video a YouTube...');
+        _addLog('[2/7] Solicitando información extendida del video a YouTube...');
         fullVideo = await _yt.videos
             .get(video.id)
             .timeout(
@@ -415,469 +453,301 @@ class YouTubeDownload extends _$YouTubeDownload {
                 );
               },
             );
-        print('DEBUG_YT: [2/7] Información obtenida correctamente en ${stepStopwatch.elapsedMilliseconds} ms.');
+        _addLog('[2/7] Información obtenida correctamente en ${stepStopwatch.elapsedMilliseconds} ms.');
       } catch (e) {
-        print('DEBUG_YT: [2/7] Error obteniendo info del video tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
-        print(
-          'DEBUG_YT: Usando la información básica del video como respaldo.',
-        );
+        _addLog('[2/7] Error obteniendo info del video tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
+        _addLog('Usando la información básica del video como respaldo.');
         fullVideo = null;
       }
       stepStopwatch.reset();
 
       // Variables de control de descarga
-      File? finalFile;
       String extension = 'mp3';
-      bool usedCobalt = false;
       int totalAudioBytes = 0;
 
-      // --- INTENTO DE DESCARGA CON COBALT API ---
-      final cobaltUrl = ref.read(settingsProvider).cobaltUrl;
-      print('DEBUG_YT: [3/7] Intentando obtener stream de audio vía Cobalt en $cobaltUrl...');
-      
-      try {
-        state = DownloadState(
-          progress: 0.0,
-          video: video,
-          totalBytes: 0,
-          downloadedBytes: 0,
-          status: DownloadStatus.fetchingManifest,
-        );
+      // --- DESCARGA CON YOUTUBE EXPLODE DART ---
+      _addLog('[3/7] Obteniendo manifest de streams con youtube_explode_dart...');
+      state = state!.copyWith(
+        progress: 0.0,
+        status: DownloadStatus.fetchingManifest,
+      );
 
-        final videoUrl = 'https://www.youtube.com/watch?v=${video.id}';
-        final response = await http.post(
-          Uri.parse(cobaltUrl),
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          },
-          body: json.encode({
-            'url': videoUrl,
-            'downloadMode': 'audio',
-            'audioFormat': 'best',
-          }),
-        ).timeout(const Duration(seconds: 90));
+      StreamManifest? manifest;
+      final errors = <String>[];
 
-        print('DEBUG_YT: [COBALT] Respuesta de API recibida en ${stepStopwatch.elapsedMilliseconds} ms (Status: ${response.statusCode}).');
+      final clientConfigs = [
+        [YoutubeApiClient.androidVr],
+        [YoutubeApiClient.ios, YoutubeApiClient.safari],
+        [YoutubeApiClient.tv],
+        null,
+      ];
+
+      for (var i = 0; i < clientConfigs.length; i++) {
+        final config = clientConfigs[i];
+        final configDesc = config == null
+            ? 'Por defecto'
+            : config.map((c) {
+                if (c == YoutubeApiClient.androidVr) return 'androidVr';
+                if (c == YoutubeApiClient.ios) return 'ios';
+                if (c == YoutubeApiClient.safari) return 'safari';
+                if (c == YoutubeApiClient.tv) return 'tv';
+                return c.toString();
+              }).join('+');
+        _addLog('[DESCARGA] Intentando obtener manifiesto con clientes: $configDesc (Intento ${i + 1}/${clientConfigs.length})...');
         
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          final status = data['status'];
-          if (status == 'tunnel' || status == 'redirect') {
-            final directAudioUrl = data['url'] as String?;
-            if (directAudioUrl != null) {
-              print('DEBUG_YT: [COBALT] Stream obtenido vía Cobalt con éxito: $directAudioUrl');
-              
-              // Detectar extensión de la URL de Cobalt / direct stream
-              final uri = Uri.parse(directAudioUrl);
-              final path = uri.path.toLowerCase();
-              final mimeParam = uri.queryParameters['mime']?.toLowerCase() ?? '';
-              
-              if (path.contains('.m4a') || mimeParam.contains('mp4') || uri.host.contains('googlevideo.com')) {
-                extension = 'm4a';
-              } else if (path.contains('.mp3')) {
-                extension = 'mp3';
-              } else if (path.contains('.opus') || mimeParam.contains('opus') || mimeParam.contains('webm')) {
-                extension = 'opus';
-              } else if (path.contains('.ogg') || mimeParam.contains('ogg')) {
-                extension = 'ogg';
-              } else if (path.contains('.wav')) {
-                extension = 'wav';
-              }
-
-              final cobaltFile = File('${directory.path}/$fileName.$extension');
-              
-              state = DownloadState(
-                progress: 0.0,
-                video: video,
-                totalBytes: 0,
-                downloadedBytes: 0,
-                status: DownloadStatus.downloading,
-              );
-
-              final client = http.Client();
-              final request = http.Request('GET', Uri.parse(directAudioUrl));
-              request.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
-              
-              print('DEBUG_YT: [COBALT] Iniciando conexión de descarga...');
-              stepStopwatch.reset();
-              final streamedResponse = await client.send(request).timeout(const Duration(seconds: 90));
-              
-              print('DEBUG_YT: [COBALT] Conexión establecida en ${stepStopwatch.elapsedMilliseconds} ms.');
-              print('DEBUG_YT: [COBALT] Código de estado de descarga: ${streamedResponse.statusCode}');
-              print('DEBUG_YT: [COBALT] Cabeceras de respuesta: ${streamedResponse.headers}');
-              print('DEBUG_YT: [COBALT] Longitud del contenido (header): ${streamedResponse.contentLength}');
-
-              final totalBytes = streamedResponse.contentLength ?? 0;
-              totalAudioBytes = totalBytes;
-              int downloadedBytes = 0;
-              final fileStream = cobaltFile.openWrite();
-
-              stepStopwatch.reset();
-              try {
-                await streamedResponse.stream.forEach((chunk) {
-                  if (downloadedBytes == 0) {
-                    print('DEBUG_YT: [COBALT] Primer chunk recibido (${chunk.length} bytes) en ${stepStopwatch.elapsedMilliseconds} ms desde inicio de stream.');
-                  }
-                  fileStream.add(chunk);
-                  downloadedBytes += chunk.length;
-                  final currentProgress = totalBytes > 0
-                      ? (downloadedBytes / totalBytes).clamp(0.0, 1.0)
-                      : 0.5;
-
-                  state = DownloadState(
-                    progress: currentProgress,
-                    video: video,
-                    totalBytes: totalBytes,
-                    downloadedBytes: downloadedBytes,
-                    status: currentProgress < 0.95
-                        ? DownloadStatus.downloading
-                        : DownloadStatus.finalizing,
-                  );
-                });
-                
-                print('DEBUG_YT: [COBALT] Transferencia completada. Total: $downloadedBytes bytes en ${stepStopwatch.elapsedMilliseconds} ms (~${(downloadedBytes / 1024 / (stepStopwatch.elapsedMilliseconds / 1000)).toStringAsFixed(2)} KB/s).');
-                
-                stepStopwatch.reset();
-                await fileStream.flush();
-                await fileStream.close();
-                print('DEBUG_YT: [COBALT] Guardado en disco finalizado en ${stepStopwatch.elapsedMilliseconds} ms.');
-                
-                finalFile = cobaltFile;
-                usedCobalt = true;
-              } catch (e) {
-                print('DEBUG_YT: [COBALT] Error en flujo de descarga de Cobalt tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
-                await fileStream.close();
-                if (await cobaltFile.exists()) {
-                  await cobaltFile.delete();
-                }
-                usedCobalt = false;
-              } finally {
-                client.close();
-              }
-            }
-          } else if (status == 'error') {
-            final errorObj = data['error'];
-            final errorText = errorObj is Map 
-                ? (errorObj['code'] ?? errorObj.toString()) 
-                : (data['text'] ?? 'Error desconocido');
-            print('DEBUG_YT: [COBALT] Cobalt retornó error: $errorText');
+        stepStopwatch.reset();
+        try {
+          if (config == null) {
+            manifest = await _yt.videos.streams
+                .getManifest(video.id)
+                .timeout(const Duration(seconds: 15));
+          } else {
+            manifest = await _yt.videos.streams
+                .getManifest(video.id, ytClients: config)
+                .timeout(const Duration(seconds: 15));
           }
-        } else {
-          print('DEBUG_YT: [COBALT] Falló respuesta HTTP de Cobalt: ${response.statusCode}');
+          _addLog('[DESCARGA] Manifiesto obtenido con éxito en ${stepStopwatch.elapsedMilliseconds} ms usando clientes: $configDesc');
+          break;
+        } catch (e) {
+          _addLog('[DESCARGA] Falló el intento con clientes $configDesc tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
+          errors.add('$configDesc: $e');
         }
-      } catch (e) {
-        print('DEBUG_YT: [COBALT] Error global intentando Cobalt API tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
       }
       stepStopwatch.reset();
 
-      // --- FALLBACK A YOUTUBE EXPLODE DART ---
-      if (!usedCobalt) {
-        print('DEBUG_YT: [4/7] Cobalt no disponible o falló. Usando youtube_explode_dart como fallback...');
-        
-        state = DownloadState(
-          progress: 0.0,
-          video: video,
-          totalBytes: 0,
-          downloadedBytes: 0,
-          status: DownloadStatus.fetchingManifest,
+      if (manifest == null) {
+        throw Exception(
+          'YouTube está bloqueando la solicitud de descarga (Intento fallido con todos los clientes).\n'
+          'Detalles de los errores:\n${errors.join('\n')}'
         );
+      }
 
-        StreamManifest? manifest;
-        final errors = <String>[];
+      state = state!.copyWith(
+        progress: 0.0,
+        status: DownloadStatus.selectingQuality,
+      );
 
-        final clientConfigs = [
-          [YoutubeApiClient.androidVr],
-          [YoutubeApiClient.ios, YoutubeApiClient.safari],
-          [YoutubeApiClient.tv],
-          null,
-        ];
+      final audioStreams = manifest.audioOnly.where(
+        (s) => s.container.name == 'mp4',
+      );
+      final audioStream = audioStreams.isNotEmpty
+          ? audioStreams.withHighestBitrate()
+          : manifest.audioOnly.withHighestBitrate();
 
-        for (var i = 0; i < clientConfigs.length; i++) {
-          final config = clientConfigs[i];
-          final configDesc = config == null
-              ? 'Por defecto'
-              : config.map((c) {
-                  if (c == YoutubeApiClient.androidVr) return 'androidVr';
-                  if (c == YoutubeApiClient.ios) return 'ios';
-                  if (c == YoutubeApiClient.safari) return 'safari';
-                  if (c == YoutubeApiClient.tv) return 'tv';
-                  return c.toString();
-                }).join('+');
-          print('DEBUG_YT: [FALLBACK] Intentando obtener manifiesto con clientes: $configDesc (Intento ${i + 1}/${clientConfigs.length})...');
+      extension = audioStream.container.name == 'mp4'
+          ? 'm4a'
+          : audioStream.container.name;
           
-          stepStopwatch.reset();
-          try {
-            if (config == null) {
-              manifest = await _yt.videos.streams
-                  .getManifest(video.id)
-                  .timeout(const Duration(seconds: 15));
-            } else {
-              manifest = await _yt.videos.streams
-                  .getManifest(video.id, ytClients: config)
-                  .timeout(const Duration(seconds: 15));
-            }
-            print('DEBUG_YT: [FALLBACK] Manifiesto obtenido con éxito en ${stepStopwatch.elapsedMilliseconds} ms usando clientes: $configDesc');
-            break;
-          } catch (e) {
-            print('DEBUG_YT: [FALLBACK] Falló el intento con clientes $configDesc tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
-            errors.add('$configDesc: $e');
-          }
-        }
-        stepStopwatch.reset();
+      final ytFile = File('${directory.path}/$fileName.$extension');
+      totalAudioBytes = audioStream.size.totalBytes;
 
-        if (manifest == null) {
-          throw Exception(
-            'YouTube está bloqueando la solicitud de descarga (Intento fallido con todos los clientes).\n'
-            'Detalles de los errores:\n${errors.join('\n')}'
+      state = state!.copyWith(
+        progress: 0.0,
+        totalBytes: totalAudioBytes,
+        status: DownloadStatus.downloading,
+      );
+
+      _addLog('[DESCARGA] Obteniendo stream de YoutubeExplode. Stream size: ${audioStream.size.totalBytes} bytes');
+      stepStopwatch.reset();
+      final stream = _yt.videos.streams.get(audioStream);
+
+      _addLog('[DESCARGA] Abriendo archivo para escritura...');
+      final fileStream = ytFile.openWrite();
+      int downloadedBytes = 0;
+
+      try {
+        _addLog('[DESCARGA] Escuchando chunks del stream...');
+        await for (final chunk in stream.timeout(
+          const Duration(seconds: 15),
+          onTimeout: (sink) {
+            _addLog('[DESCARGA] Timeout del stream detectado durante la descarga (sin datos recibidos por 15s)');
+            sink.addError(
+              Exception(
+                'El servidor de YouTube limitó la velocidad a cero (Timeout).',
+              ),
+            );
+          },
+        )) {
+          fileStream.add(chunk);
+          downloadedBytes += chunk.length;
+          final currentProgress =
+              (downloadedBytes / totalAudioBytes).clamp(0.0, 1.0);
+
+          if (downloadedBytes == chunk.length) {
+            _addLog('[DESCARGA] Primer chunk recibido (${chunk.length} bytes) en ${stepStopwatch.elapsedMilliseconds} ms.');
+          }
+
+          state = state!.copyWith(
+            progress: currentProgress,
+            downloadedBytes: downloadedBytes,
+            status: currentProgress < 0.95
+                ? DownloadStatus.downloading
+                : DownloadStatus.finalizing,
           );
         }
-
-        state = DownloadState(
-          progress: 0.0,
-          video: video,
-          totalBytes: 0,
-          downloadedBytes: 0,
-          status: DownloadStatus.selectingQuality,
-        );
-
-        final audioStreams = manifest.audioOnly.where(
-          (s) => s.container.name == 'mp4',
-        );
-        final audioStream = audioStreams.isNotEmpty
-            ? audioStreams.withHighestBitrate()
-            : manifest.audioOnly.withHighestBitrate();
-
-        extension = audioStream.container.name == 'mp4'
-            ? 'm4a'
-            : audioStream.container.name;
-            
-        final ytFile = File('${directory.path}/$fileName.$extension');
-        totalAudioBytes = audioStream.size.totalBytes;
-
-        state = DownloadState(
-          progress: 0.0,
-          video: video,
-          totalBytes: totalAudioBytes,
-          downloadedBytes: 0,
-          status: DownloadStatus.downloading,
-        );
-
-        print('DEBUG_YT: [FALLBACK] Obteniendo stream de YoutubeExplode. Stream size: ${audioStream.size.totalBytes} bytes');
+        
+        _addLog('[DESCARGA] Transferencia completada. Total: $downloadedBytes bytes en ${stepStopwatch.elapsedMilliseconds} ms (~${(downloadedBytes / 1024 / (stepStopwatch.elapsedMilliseconds / 1000)).toStringAsFixed(2)} KB/s).');
+        
         stepStopwatch.reset();
-        final stream = _yt.videos.streams.get(audioStream);
-
-        print('DEBUG_YT: [FALLBACK] Abriendo archivo para escritura...');
-        final fileStream = ytFile.openWrite();
-        int downloadedBytes = 0;
-
-        try {
-          print('DEBUG_YT: [FALLBACK] Escuchando chunks del stream...');
-          await for (final chunk in stream.timeout(
-            const Duration(seconds: 15),
-            onTimeout: (sink) {
-              print('DEBUG_YT: [FALLBACK] Timeout del stream detectado durante la descarga (sin datos recibidos por 15s)');
-              sink.addError(
-                Exception(
-                  'El servidor de YouTube limitó la velocidad a cero (Timeout).',
-                ),
-              );
-            },
-          )) {
-            fileStream.add(chunk);
-            downloadedBytes += chunk.length;
-            final currentProgress =
-                (downloadedBytes / totalAudioBytes).clamp(0.0, 1.0);
-
-            if (downloadedBytes == chunk.length) {
-              print('DEBUG_YT: [FALLBACK] Primer chunk recibido (${chunk.length} bytes) en ${stepStopwatch.elapsedMilliseconds} ms.');
-            }
-
-            state = DownloadState(
-              progress: currentProgress,
-              video: video,
-              totalBytes: totalAudioBytes,
-              downloadedBytes: downloadedBytes,
-              status: currentProgress < 0.95
-                  ? DownloadStatus.downloading
-                  : DownloadStatus.finalizing,
-            );
-          }
-          
-          print('DEBUG_YT: [FALLBACK] Transferencia completada. Total: $downloadedBytes bytes en ${stepStopwatch.elapsedMilliseconds} ms (~${(downloadedBytes / 1024 / (stepStopwatch.elapsedMilliseconds / 1000)).toStringAsFixed(2)} KB/s).');
-          
-          stepStopwatch.reset();
-          await fileStream.flush();
-          await fileStream.close();
-          print('DEBUG_YT: [FALLBACK] Guardado en disco finalizado en ${stepStopwatch.elapsedMilliseconds} ms.');
-          
-          finalFile = ytFile;
-        } catch (e) {
-          print('DEBUG_YT: [FALLBACK] Excepción durante la descarga del stream tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
-          await fileStream.close();
-          if (await ytFile.exists()) {
-            await ytFile.delete();
-          }
-          throw Exception('Error al descargar el audio: $e');
+        await fileStream.flush();
+        await fileStream.close();
+        _addLog('[DESCARGA] Guardado en disco finalizado en ${stepStopwatch.elapsedMilliseconds} ms.');
+      } catch (e) {
+        _addLog('[DESCARGA] Excepción durante la descarga del stream tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
+        await fileStream.close();
+        if (await ytFile.exists()) {
+          await ytFile.delete();
         }
+        throw Exception('Error al descargar el audio: $e');
       }
-      stepStopwatch.reset();
 
       // --- PROCEDIMIENTO POST-DESCARGA (MINIATURA, METADATOS, ESCANEO) ---
-      if (finalFile != null) {
-        if (extension != 'm4a') {
-          // Descargar miniatura (Mejor resolución real posible)
-          print('DEBUG_YT: [5/7] Iniciando descarga de miniatura...');
-          state = DownloadState(
-            progress: 0.0,
-            video: video,
-            totalBytes: 0,
-            downloadedBytes: 0,
-            status: DownloadStatus.downloadingThumbnail,
-          );
+      if (extension != 'm4a') {
+        // Descargar miniatura (Mejor resolución real posible)
+        _addLog('[5/7] Iniciando descarga de miniatura...');
+        state = state!.copyWith(
+          progress: 0.0,
+          status: DownloadStatus.downloadingThumbnail,
+        );
 
-          try {
-            final thumbCandidates = [
-              if (fullVideo?.thumbnails.maxResUrl.isNotEmpty == true)
-                fullVideo!.thumbnails.maxResUrl,
-              if (fullVideo?.thumbnails.highResUrl.isNotEmpty == true)
-                fullVideo!.thumbnails.highResUrl,
-              if (fullVideo?.thumbnails.standardResUrl.isNotEmpty == true)
-                fullVideo!.thumbnails.standardResUrl,
-              video.thumbnailUrl,
-            ];
+        try {
+          final thumbCandidates = [
+            if (fullVideo?.thumbnails.maxResUrl.isNotEmpty == true)
+              fullVideo!.thumbnails.maxResUrl,
+            if (fullVideo?.thumbnails.highResUrl.isNotEmpty == true)
+              fullVideo!.thumbnails.highResUrl,
+            if (fullVideo?.thumbnails.standardResUrl.isNotEmpty == true)
+              fullVideo!.thumbnails.standardResUrl,
+            video.thumbnailUrl,
+          ];
 
-            Uint8List? bestImageBytes;
-            for (String url in thumbCandidates) {
-              print('DEBUG_YT: [MINIATURA] Probando URL de miniatura: $url');
-              stepStopwatch.reset();
-              try {
-                final response = await http
-                    .get(Uri.parse(url))
-                    .timeout(const Duration(seconds: 10));
-                
-                print('DEBUG_YT: [MINIATURA] Respuesta recibida en ${stepStopwatch.elapsedMilliseconds} ms (Status: ${response.statusCode}).');
-                if (response.statusCode == 200) {
-                  if (response.bodyBytes.length > 5000) {
-                    bestImageBytes = response.bodyBytes;
-                    print('DEBUG_YT: [MINIATURA] Miniatura obtenida correctamente con tamaño: ${bestImageBytes.length} bytes.');
-                    break;
-                  } else {
-                    print('DEBUG_YT: [MINIATURA] Miniatura demasiado pequeña: ${response.bodyBytes.length} bytes.');
-                  }
-                } else {
-                  print(
-                    'DEBUG_YT: [MINIATURA] Error HTTP en miniatura: ${response.statusCode}',
-                  );
-                }
-              } catch (e) {
-                print('DEBUG_YT: [MINIATURA] Error obteniendo miniatura tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
-              }
-            }
-
+          Uint8List? bestImageBytes;
+          for (String url in thumbCandidates) {
+            _addLog('[MINIATURA] Probando URL de miniatura: $url');
             stepStopwatch.reset();
-            if (bestImageBytes != null) {
-              final thumbnailFile = File('${directory.path}/$fileName.jpg');
-              await thumbnailFile.writeAsBytes(bestImageBytes);
-              print('DEBUG_YT: [MINIATURA] Miniatura guardada en disco en ${stepStopwatch.elapsedMilliseconds} ms.');
+            try {
+              final response = await http
+                  .get(Uri.parse(url))
+                  .timeout(const Duration(seconds: 10));
+              
+              _addLog('[MINIATURA] Respuesta recibida en ${stepStopwatch.elapsedMilliseconds} ms (Status: ${response.statusCode}).');
+              if (response.statusCode == 200) {
+                if (response.bodyBytes.length > 5000) {
+                  bestImageBytes = response.bodyBytes;
+                  _addLog('[MINIATURA] Miniatura obtenida correctamente con tamaño: ${bestImageBytes.length} bytes.');
+                  break;
+                } else {
+                  _addLog('[MINIATURA] Miniatura demasiado pequeña: ${response.bodyBytes.length} bytes.');
+                }
+              } else {
+                _addLog('[MINIATURA] Error HTTP en miniatura: ${response.statusCode}');
+              }
+            } catch (e) {
+              _addLog('[MINIATURA] Error obteniendo miniatura tras ${stepStopwatch.elapsedMilliseconds} ms: $e');
             }
-          } catch (e) {
-            print('DEBUG_YT: [MINIATURA] Error global en descarga de miniatura: $e');
           }
+
           stepStopwatch.reset();
+          if (bestImageBytes != null) {
+            final thumbnailFile = File('${directory.path}/$fileName.jpg');
+            await thumbnailFile.writeAsBytes(bestImageBytes);
+            _addLog('[MINIATURA] Miniatura guardada en disco en ${stepStopwatch.elapsedMilliseconds} ms.');
+          }
+        } catch (e) {
+          _addLog('[MINIATURA] Error global en descarga de miniatura: $e');
+        }
+        stepStopwatch.reset();
 
-          // Guardar metadatos usando audio_metadata_reader (AMR)
-          try {
-            if (_isSafeToModifyMetadata(finalFile)) {
-              print('DEBUG_YT: [6/7] Iniciando inserción de metadatos (AMR)...');
-              state = DownloadState(
-                progress: 0.98,
-                video: video,
-                totalBytes: totalAudioBytes,
-                downloadedBytes: totalAudioBytes,
-                status: DownloadStatus.writingMetadata,
-              );
+        // Guardar metadatos usando audio_metadata_reader (AMR)
+        try {
+          if (_isSafeToModifyMetadata(ytFile)) {
+            _addLog('[6/7] Iniciando inserción de metadatos (AMR)...');
+            state = state!.copyWith(
+              progress: 0.98,
+              status: DownloadStatus.writingMetadata,
+            );
 
-              final thumbnailFile = File('${directory.path}/$fileName.jpg');
-              Uint8List? artworkBytes;
+            final thumbnailFile = File('${directory.path}/$fileName.jpg');
+            Uint8List? artworkBytes;
 
-              if (await thumbnailFile.exists()) {
-                final originalBytes = await thumbnailFile.readAsBytes();
-                print('DEBUG_YT: [METADATOS] Iniciando compresión de carátula (${originalBytes.length} bytes)...');
-                stepStopwatch.reset();
-                artworkBytes = await _compressArtwork(originalBytes);
-                print('DEBUG_YT: [METADATOS] Carátula comprimida en ${stepStopwatch.elapsedMilliseconds} ms (Nuevo tamaño: ${artworkBytes?.length} bytes).');
-              }
-
-              // Aplicar metadatos usando AMR
-              try {
-                stepStopwatch.reset();
-                amr.updateMetadata(finalFile, (metadata) {
-                  metadata.setTitle(title);
-                  metadata.setArtist(artist);
-                  if (artworkBytes != null) {
-                    metadata.setPictures([
-                      amr.Picture(
-                        artworkBytes,
-                        'image/jpeg',
-                        amr.PictureType.coverFront,
-                      ),
-                    ]);
-                  }
-                });
-                print('DEBUG_YT: [METADATOS] Metadatos actualizados con éxito vía AMR en ${stepStopwatch.elapsedMilliseconds} ms.');
-              } catch (e) {
-                print('DEBUG_YT: [METADATOS] Error actualizando metadatos con AMR: $e');
-              }
-
-              // Limpiar miniatura temporal
+            if (await thumbnailFile.exists()) {
+              final originalBytes = await thumbnailFile.readAsBytes();
+              _addLog('[METADATOS] Iniciando compresión de carátula (${originalBytes.length} bytes)...');
               stepStopwatch.reset();
-              if (await thumbnailFile.exists()) {
-                await thumbnailFile.delete();
-                print('DEBUG_YT: [METADATOS] Miniatura temporal eliminada en ${stepStopwatch.elapsedMilliseconds} ms.');
-              }
-            } else {
-              print('DEBUG_YT: [6/7] Omitiendo inserción de metadatos (archivo inseguro o demasiado grande).');
+              artworkBytes = await _compressArtwork(originalBytes);
+              _addLog('[METADATOS] Carátula comprimida en ${stepStopwatch.elapsedMilliseconds} ms (Nuevo tamaño: ${artworkBytes?.length} bytes).');
             }
-          } catch (e) {
-            print('DEBUG_YT: [METADATOS] Error global en procesamiento de metadatos: $e');
+
+            // Aplicar metadatos usando AMR
+            try {
+              stepStopwatch.reset();
+              amr.updateMetadata(ytFile, (metadata) {
+                metadata.setTitle(title);
+                metadata.setArtist(artist);
+                if (artworkBytes != null) {
+                  metadata.setPictures([
+                    amr.Picture(
+                      artworkBytes,
+                      'image/jpeg',
+                      amr.PictureType.coverFront,
+                    ),
+                  ]);
+                }
+              });
+              _addLog('[METADATOS] Metadatos actualizados con éxito vía AMR en ${stepStopwatch.elapsedMilliseconds} ms.');
+            } catch (e) {
+              _addLog('[METADATOS] Error actualizando metadatos con AMR: $e');
+            }
+
+            // Limpiar miniatura temporal
+            stepStopwatch.reset();
+            if (await thumbnailFile.exists()) {
+              await thumbnailFile.delete();
+              _addLog('[METADATOS] Miniatura temporal eliminada en ${stepStopwatch.elapsedMilliseconds} ms.');
+            }
+          } else {
+            _addLog('[6/7] Omitiendo inserción de metadatos (archivo inseguro o demasiado grande).');
           }
+        } catch (e) {
+          _addLog('[METADATOS] Error global en procesamiento de metadatos: $e');
         }
-        stepStopwatch.reset();
-
-        // Notificar MediaStore (Solo en Android, ya que on_audio_query no tiene implementación en escritorio)
-        if (Platform.isAndroid) {
-          try {
-            final audioQuery = OnAudioQuery();
-            await audioQuery.scanMedia(finalFile.path);
-            print('DEBUG_YT: [ESCANEO] Escaneo MediaStore completado en ${stepStopwatch.elapsedMilliseconds} ms.');
-          } catch (e) {
-            print('DEBUG_YT: [ESCANEO] Error escaneando MediaStore: $e');
-          }
-        } else {
-          print('DEBUG_YT: [ESCANEO] Omitiendo escaneo de MediaStore (No soportado en esta plataforma).');
-        }
-        stepStopwatch.reset();
-
-        state = null;
-        await Future.delayed(const Duration(seconds: 1));
-        
-        print('DEBUG_YT: [ESCANEO] Escaneando música del dispositivo con musicLibraryProvider...');
-        await ref.read(musicLibraryProvider.notifier).scanDeviceMusic();
-        print('DEBUG_YT: [ESCANEO] Escaneo de biblioteca completado en ${stepStopwatch.elapsedMilliseconds} ms.');
-
-        globalStopwatch.stop();
-        print('DEBUG_YT: [COMPLETADO] Descarga y procesamiento finalizados con éxito en ${globalStopwatch.elapsedMilliseconds} ms (~${(globalStopwatch.elapsedMilliseconds / 1000).toStringAsFixed(2)} segundos).');
-
-        return finalFile.path;
-      } else {
-        throw Exception('El archivo descargado no pudo ser verificado.');
       }
+      stepStopwatch.reset();
+
+      // Notificar MediaStore (Solo en Android, ya que on_audio_query no tiene implementación en escritorio)
+      if (Platform.isAndroid) {
+        try {
+          final audioQuery = OnAudioQuery();
+          await audioQuery.scanMedia(ytFile.path);
+          _addLog('[ESCANEO] Escaneo MediaStore completado en ${stepStopwatch.elapsedMilliseconds} ms.');
+        } catch (e) {
+          _addLog('[ESCANEO] Error escaneando MediaStore: $e');
+        }
+      } else {
+        _addLog('[ESCANEO] Omitiendo escaneo de MediaStore (No soportado en esta plataforma).');
+      }
+      stepStopwatch.reset();
+
+      state = null;
+      await Future.delayed(const Duration(seconds: 1));
+      
+      _addLog('[ESCANEO] Escaneando música del dispositivo con musicLibraryProvider...');
+      await ref.read(musicLibraryProvider.notifier).scanDeviceMusic();
+      _addLog('[ESCANEO] Escaneo de biblioteca completado en ${stepStopwatch.elapsedMilliseconds} ms.');
+
+      globalStopwatch.stop();
+      _addLog('[COMPLETADO] Descarga y procesamiento finalizados con éxito en ${globalStopwatch.elapsedMilliseconds} ms (~${(globalStopwatch.elapsedMilliseconds / 1000).toStringAsFixed(2)} segundos).');
+
+      return ytFile.path;
     } catch (e) {
       globalStopwatch.stop();
-      print('DEBUG_YT: [ERROR] Descarga falló después de ${globalStopwatch.elapsedMilliseconds} ms con error: $e');
-      state = null;
+      _addLog('[ERROR] Descarga falló después de ${globalStopwatch.elapsedMilliseconds} ms con error: $e');
+      if (state != null) {
+        state = state!.copyWith(
+          status: DownloadStatus.failed,
+          errorMessage: e.toString(),
+        );
+      }
       rethrow;
     }
   }

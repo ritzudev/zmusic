@@ -6,6 +6,13 @@ import 'package:zmusic/providers/youtube_provider.dart';
 class DownloadStatusBar extends ConsumerWidget {
   const DownloadStatusBar({super.key});
 
+  void _showDebugLogsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const _DebugLogsDialogContent(),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final downloadState = ref.watch(youTubeDownloadProvider);
@@ -18,7 +25,9 @@ class DownloadStatusBar extends ConsumerWidget {
     final int bytesTotal = downloadState.totalBytes;
     final DownloadStatus status = downloadState.status;
 
+    final bool isFailed = status == DownloadStatus.failed;
     final theme = Theme.of(context);
+    final statusColor = isFailed ? Colors.redAccent : theme.colorScheme.primary;
 
     // Mapear el estado a texto
     String getStatusText(DownloadStatus status) {
@@ -37,6 +46,8 @@ class DownloadStatusBar extends ConsumerWidget {
           return 'Guardando información...';
         case DownloadStatus.finalizing:
           return 'Finalizando...';
+        case DownloadStatus.failed:
+          return 'Error en la descarga';
       }
     }
 
@@ -60,6 +71,9 @@ class DownloadStatusBar extends ConsumerWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
+        border: isFailed 
+            ? Border.all(color: Colors.redAccent.withValues(alpha: 0.5), width: 1.5)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
@@ -73,8 +87,8 @@ class DownloadStatusBar extends ConsumerWidget {
         children: [
           Row(
             children: [
-              // Icono de nube animado
-              const _AnimatedDownloadIcon(),
+              // Icono de descarga o de error
+              _AnimatedDownloadIcon(isFailed: isFailed),
               const SizedBox(width: 12),
               // Información
               Expanded(
@@ -86,7 +100,7 @@ class DownloadStatusBar extends ConsumerWidget {
                       style: GoogleFonts.spaceGrotesk(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
-                        color: theme.colorScheme.onSurface,
+                        color: isFailed ? Colors.redAccent : theme.colorScheme.onSurface,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -104,61 +118,212 @@ class DownloadStatusBar extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Porcentaje
-              Text(
-                "$currentPercentage%",
-                style: GoogleFonts.spaceGrotesk(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  color: theme.colorScheme.primary,
+              // Porcentaje (solo si no ha fallado)
+              if (!isFailed)
+                Text(
+                  "$currentPercentage%",
+                  style: GoogleFonts.spaceGrotesk(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: statusColor,
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 12),
-          // Barra de progreso
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progressValue,
-              backgroundColor: theme.colorScheme.onSurface.withValues(
-                alpha: 0.1,
-              ),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                theme.colorScheme.primary,
-              ),
-              minHeight: 8,
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Tamaños
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                "$downloadedStr / $totalStr",
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  letterSpacing: 0.5,
+          // Barra de progreso (solo si no ha fallado)
+          if (!isFailed) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: progressValue,
+                backgroundColor: theme.colorScheme.onSurface.withValues(
+                  alpha: 0.1,
                 ),
+                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                minHeight: 8,
               ),
-            ],
-          ),
-          Text(
-            'Se guardará automaticamente',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-              letterSpacing: 0.5,
             ),
-          ),
+            const SizedBox(height: 8),
+            // Tamaños
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  "$downloadedStr / $totalStr",
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
+          
+          // Fila inferior con el estado y los logs/botones
+          if (!isFailed)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Se guardará automáticamente',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => _showDebugLogsDialog(context),
+                  icon: const Icon(Icons.bug_report_outlined, size: 14),
+                  label: const Text('Logs', style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    downloadState.errorMessage ?? 'Ocurrió un error inesperado',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _showDebugLogsDialog(context),
+                      icon: const Icon(Icons.bug_report_outlined, size: 14),
+                      label: const Text('Ver Logs', style: TextStyle(fontSize: 11)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        foregroundColor: Colors.redAccent,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => ref.read(youTubeDownloadProvider.notifier).clear(),
+                      icon: const Icon(Icons.close, size: 14),
+                      label: const Text('Cerrar', style: TextStyle(fontSize: 11)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        foregroundColor: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
 }
 
+class _DebugLogsDialogContent extends ConsumerStatefulWidget {
+  const _DebugLogsDialogContent();
+
+  @override
+  ConsumerState<_DebugLogsDialogContent> createState() => _DebugLogsDialogContentState();
+}
+
+class _DebugLogsDialogContentState extends ConsumerState<_DebugLogsDialogContent> {
+  List<String> _cachedLogs = [];
+  bool _wasDownloading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final downloadState = ref.watch(youTubeDownloadProvider);
+    
+    if (downloadState != null) {
+      _cachedLogs = downloadState.logs;
+      _wasDownloading = true;
+    }
+
+    final displayLogs = [..._cachedLogs];
+    if (downloadState == null && _wasDownloading) {
+      if (displayLogs.isEmpty || !displayLogs.last.contains('COMPLETADO')) {
+        displayLogs.add('[COMPLETADO] Descarga finalizada con éxito.');
+      }
+    }
+
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.bug_report_outlined, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          const Text('Logs de Depuración'),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 350,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Historial detallado del proceso de descarga:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    displayLogs.isEmpty 
+                        ? 'No hay registros disponibles.'
+                        : displayLogs.map((log) => '• $log').join('\n'),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cerrar'),
+        ),
+      ],
+    );
+  }
+}
+
 class _AnimatedDownloadIcon extends StatefulWidget {
-  const _AnimatedDownloadIcon();
+  final bool isFailed;
+  const _AnimatedDownloadIcon({required this.isFailed});
 
   @override
   State<_AnimatedDownloadIcon> createState() => _AnimatedDownloadIconState();
@@ -180,7 +345,7 @@ class _AnimatedDownloadIconState extends State<_AnimatedDownloadIcon>
 
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
 
-    // Animación de escala sutil (0.95 a 1.05)
+    // Animación de escala sutil (0.95 a 1.10)
     _scaleAnimation = Tween<double>(
       begin: 0.95,
       end: 1.10,
@@ -196,7 +361,26 @@ class _AnimatedDownloadIconState extends State<_AnimatedDownloadIcon>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
+    final primaryColor = widget.isFailed ? Colors.redAccent : theme.colorScheme.primary;
+
+    if (widget.isFailed) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.redAccent.withValues(alpha: 0.3),
+            width: 2,
+          ),
+        ),
+        child: const Icon(
+          Icons.error_outline_rounded,
+          color: Colors.redAccent,
+          size: 24,
+        ),
+      );
+    }
 
     return AnimatedBuilder(
       animation: _animation,
