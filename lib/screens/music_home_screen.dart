@@ -197,10 +197,31 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                           ),
                         ),
                       ),
-                      // Botón de descarga de YouTube
+                      // Botón de descarga de YouTube (Invidious)
                       if (searchQuery.isEmpty)
                         Row(
                           children: [
+                            const SizedBox(width: 8),
+                            Container(
+                              height: 50,
+                              width: 50,
+                              decoration: BoxDecoration(
+                                color: Colors.cyanAccent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: IconButton(
+                                tooltip: 'YouTube Invidious (Sin Bloqueos)',
+                                onPressed: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/invidious-search',
+                                  );
+                                },
+                                icon: const Icon(Icons.cloud_download_rounded),
+                                color: Colors.black,
+                              ),
+                            ),
+
                             const SizedBox(width: 8),
                             Container(
                               height: 50,
@@ -210,6 +231,7 @@ class _MusicHomeScreenState extends ConsumerState<MusicHomeScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: IconButton(
+                                tooltip: 'Descargar de YouTube',
                                 onPressed: () {
                                   Navigator.pushNamed(
                                     context,

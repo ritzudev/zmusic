@@ -9,6 +9,7 @@ import 'package:zmusic/screens/now_playing_screen.dart';
 import 'package:zmusic/screens/settings_screen.dart';
 import 'package:zmusic/screens/tagger_test_screen.dart';
 import 'package:zmusic/screens/youtube_search_screen.dart';
+import 'package:zmusic/screens/invidious_search_screen.dart';
 import 'package:zmusic/theme/app_theme.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:zmusic/providers/audio_player_provider.dart';
@@ -152,6 +153,7 @@ class _MainAppState extends ConsumerState<MainApp> {
         '/now-playing': (context) => const NowPlayingScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/youtube-search': (context) => const YouTubeSearchScreen(),
+        '/invidious-search': (context) => const InvidiousSearchScreen(),
         '/tagger-test': (context) => const TaggerTestApp(),
       },
     );

@@ -9,6 +9,8 @@ jobs:
   release-manual:
     name: Prepare Release Meta
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

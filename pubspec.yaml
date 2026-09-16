@@ -1,7 +1,7 @@
 name: zmusic
 description: "A new Flutter project."
 publish_to: "none"
-version: 0.1.28
+version: 0.1.29
 
 environment:
   sdk: ^3.9.2
@@ -29,6 +29,7 @@ dependencies:
   youtube_explode_dart: ^3.1.0
   http: ^1.2.2
   dio: ^5.7.0
+
   audio_metadata_reader: 
     git:
       url: https://github.com/ClementBeal/audio_metadata_reader.git
@@ -77,6 +78,6 @@ msix_config:
   display_name: Z Music
   publisher_display_name: Ritzu
   identity_name: com.ritzu.zmusic
-  msix_version: 0.1.0.41
+  msix_version: 0.1.0.42
   logo_path: assets/zmusic.png
   capabilities: internetClient, musicLibrary

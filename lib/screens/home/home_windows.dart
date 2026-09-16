@@ -102,6 +102,17 @@ class _HomeWindowsState extends ConsumerState<HomeWindows> {
                   onTap: () {},
                 ),
 
+                _SidebarItem(
+                  icon: Icons.cloud_download_rounded,
+                  label: 'YouTube (Invidious)',
+                  onTap: () => Navigator.pushNamed(context, '/invidious-search'),
+                ),
+                _SidebarItem(
+                  icon: Icons.download_rounded,
+                  label: 'YouTube Music',
+                  onTap: () => Navigator.pushNamed(context, '/youtube-search'),
+                ),
+
                 const SizedBox(height: 32),
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -322,6 +333,13 @@ class _HomeWindowsState extends ConsumerState<HomeWindows> {
           ),
           const SizedBox(width: 16),
           IconButton(
+            tooltip: 'Descargar de YouTube (Invidious)',
+            icon: const Icon(Icons.cloud_download_rounded, color: Colors.cyanAccent),
+            onPressed: () => Navigator.pushNamed(context, '/invidious-search'),
+          ),
+
+          IconButton(
+            tooltip: 'Descargar de YouTube',
             icon: const Icon(Icons.download_for_offline, color: Colors.grey),
             onPressed: () => Navigator.pushNamed(context, '/youtube-search'),
           ),

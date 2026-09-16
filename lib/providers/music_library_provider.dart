@@ -26,6 +26,21 @@ class MusicLibrary extends _$MusicLibrary {
     return [];
   }
 
+  // Deduplicar canciones por id y por filePath normalizado
+  List<MusicTrack> _deduplicateSongs(List<MusicTrack> songs) {
+    final seenIds = <String>{};
+    final seenPaths = <String>{};
+    final uniqueSongs = <MusicTrack>[];
+
+    for (final song in songs) {
+      final normPath = song.filePath.replaceAll('\\', '/').toLowerCase();
+      if (seenIds.add(song.id) && (song.filePath.isEmpty || seenPaths.add(normPath))) {
+        uniqueSongs.add(song);
+      }
+    }
+    return uniqueSongs;
+  }
+
   // Cargar biblioteca desde caché
   Future<void> _loadFromCache() async {
     try {
@@ -35,7 +50,7 @@ class MusicLibrary extends _$MusicLibrary {
 
       if (cachedData != null && cachedData.isNotEmpty) {
         final List<dynamic> jsonList = json.decode(cachedData);
-        final songs = jsonList
+        final rawSongs = jsonList
             .map((json) {
               final track = MusicTrack.fromJson(json);
               // Ensure we restore favorites from the persistent favorites list
@@ -44,10 +59,14 @@ class MusicLibrary extends _$MusicLibrary {
               );
             })
             .toList();
+        final songs = _deduplicateSongs(rawSongs);
         state = songs;
         
         // Update favorites key with any favorites that were in cache but not in the list
         _syncFavorites(songs);
+        if (songs.length != rawSongs.length) {
+          _saveToCache(songs);
+        }
       }
     } catch (e) {
       // Si hay error al cargar caché, simplemente no hacer nada
@@ -173,8 +192,9 @@ class MusicLibrary extends _$MusicLibrary {
       // Pequeña pausa para asegurar que los permisos se aplicaron
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // Escanear todas las canciones del dispositivo
-      final List<MusicTrack> songs = await querySongs();
+      // Escanear todas las canciones del dispositivo y deduplicar
+      final List<MusicTrack> rawSongs = await querySongs();
+      final List<MusicTrack> songs = _deduplicateSongs(rawSongs);
 
       final prefs = await SharedPreferences.getInstance();
       final List<String> savedFavorites = prefs.getStringList(_favoritesKey) ?? <String>[];
@@ -236,7 +256,7 @@ class MusicLibrary extends _$MusicLibrary {
             ),
           );
         }
-        return songs;
+        return _deduplicateSongs(songs);
       } else {
         // Windows/Desktop
         return await _manualScanWindows();
@@ -250,36 +270,54 @@ class MusicLibrary extends _$MusicLibrary {
   // Escaneo manual para plataformas que no soportan on_audio_query (Windows)
   Future<List<MusicTrack>> _manualScanWindows() async {
     final List<MusicTrack> results = [];
-    final List<String> pathsToScan = [];
+    final List<String> rawPaths = [];
 
     try {
       // 1. Obtener carpeta personalizada si existe
       final prefs = await SharedPreferences.getInstance();
       final customPath = prefs.getString(_customFolderKey);
-      if (customPath != null && customPath.isNotEmpty) {
-        pathsToScan.add(customPath);
+      if (customPath != null && customPath.trim().isNotEmpty) {
+        rawPaths.add(customPath.trim());
       }
 
       // 2. Obtener carpetas estándar (como fallback o adicionales)
       final docsDir = await getApplicationDocumentsDirectory();
-      pathsToScan.add('${docsDir.path}/ZMusic');
+      rawPaths.add('${docsDir.path}/ZMusic');
 
       try {
         final downloadsDir = await getDownloadsDirectory();
         if (downloadsDir != null) {
-          pathsToScan.add('${downloadsDir.path}/ZMusic');
+          rawPaths.add('${downloadsDir.path}/ZMusic');
         }
       } catch (_) {}
 
-      print('DEBUG_SCAN: Escaneando rutas: $pathsToScan');
-
-      for (var path in pathsToScan) {
-        final dir = Directory(path);
-        if (!await dir.exists()) {
-          print('DEBUG_SCAN: Carpeta no existe: $path');
-          continue;
+      // Normalizar rutas y eliminar redundancias (subcarpetas o duplicadas)
+      final List<Directory> dirsToScan = [];
+      for (final p in rawPaths) {
+        final dir = Directory(p);
+        if (await dir.exists()) {
+          final canonPath = dir.absolute.path.replaceAll('\\', '/').toLowerCase();
+          // Solo agregar si no es subcarpeta de un directorio ya en la lista o idéntico
+          final alreadyIncluded = dirsToScan.any((d) {
+            final existingPath = d.absolute.path.replaceAll('\\', '/').toLowerCase();
+            return canonPath == existingPath || canonPath.startsWith('$existingPath/');
+          });
+          if (!alreadyIncluded) {
+            // Eliminar si algún directorio ya existente es subcarpeta de este nuevo
+            dirsToScan.removeWhere((d) {
+              final existingPath = d.absolute.path.replaceAll('\\', '/').toLowerCase();
+              return existingPath.startsWith('$canonPath/');
+            });
+            dirsToScan.add(dir);
+          }
         }
+      }
 
+      print('DEBUG_SCAN: Escaneando directorios únicos: ${dirsToScan.map((d) => d.path).toList()}');
+
+      final Set<String> seenFilePaths = {};
+
+      for (var dir in dirsToScan) {
         // Usar list asíncrono para no bloquear el UI
         final Stream<FileSystemEntity> entityStream = dir.list(
           recursive: true,
@@ -289,11 +327,17 @@ class MusicLibrary extends _$MusicLibrary {
 
         await for (var entity in entityStream) {
           if (entity is File) {
+            final normPath = entity.absolute.path.replaceAll('\\', '/').toLowerCase();
+            if (seenFilePaths.contains(normPath)) {
+              continue;
+            }
+
             final ext = entity.path.toLowerCase();
             if (ext.endsWith('.mp3') ||
                 ext.endsWith('.m4a') ||
                 ext.endsWith('.flac') ||
                 ext.endsWith('.wav')) {
+              seenFilePaths.add(normPath);
               processedCount++;
 
               // Cada 20 archivos, un pequeño respiro para el UI
@@ -318,14 +362,14 @@ class MusicLibrary extends _$MusicLibrary {
                 try {
                   // amr = audio_metadata_reader
                   final metadata = amr.readMetadata(file, getImage: false);
-                  if (metadata.title != null && metadata.title!.isNotEmpty) {
-                    title = metadata.title!;
+                  if (metadata.title != null && metadata.title!.trim().isNotEmpty) {
+                    title = metadata.title!.trim();
                   }
-                  if (metadata.artist != null && metadata.artist!.isNotEmpty) {
-                    artist = metadata.artist!;
+                  if (metadata.artist != null && metadata.artist!.trim().isNotEmpty) {
+                    artist = metadata.artist!.trim();
                   }
-                  if (metadata.album != null && metadata.album!.isNotEmpty) {
-                    album = metadata.album!;
+                  if (metadata.album != null && metadata.album!.trim().isNotEmpty) {
+                    album = metadata.album!.trim();
                   }
                   if (metadata.duration != null) {
                     duration = metadata.duration!;
@@ -438,10 +482,19 @@ class MusicLibrary extends _$MusicLibrary {
       );
 
       if (result != null && result.files.isNotEmpty) {
+        final currentPaths = state
+            .map((s) => s.filePath.replaceAll('\\', '/').toLowerCase())
+            .toSet();
         final newSongs = <MusicTrack>[];
 
         for (var file in result.files) {
           if (file.path != null) {
+            final normPath = file.path!.replaceAll('\\', '/').toLowerCase();
+            if (currentPaths.contains(normPath)) {
+              continue;
+            }
+            currentPaths.add(normPath);
+
             final fileName = file.name.replaceAll(RegExp(r'\.[^.]+$'), '');
 
             final song = MusicTrack(
@@ -457,7 +510,9 @@ class MusicLibrary extends _$MusicLibrary {
           }
         }
 
-        state = [...state, ...newSongs];
+        final updatedList = _deduplicateSongs([...state, ...newSongs]);
+        state = updatedList;
+        await _saveToCache(updatedList);
 
         return '${newSongs.length} canción(es) cargada(s) exitosamente';
       } else {
