@@ -10,6 +10,7 @@ class MusicTrack {
   final String? album;
   final int? size;
   final bool isFavorite;
+  final int? dateAdded;
 
   MusicTrack({
     required this.id,
@@ -23,6 +24,7 @@ class MusicTrack {
     this.album,
     this.size,
     this.isFavorite = false,
+    this.dateAdded,
   });
 
   MusicTrack copyWith({
@@ -37,6 +39,7 @@ class MusicTrack {
     String? album,
     int? size,
     bool? isFavorite,
+    int? dateAdded,
   }) {
     return MusicTrack(
       id: id ?? this.id,
@@ -50,8 +53,13 @@ class MusicTrack {
       album: album ?? this.album,
       size: size ?? this.size,
       isFavorite: isFavorite ?? this.isFavorite,
+      dateAdded: dateAdded ?? this.dateAdded,
     );
   }
+
+  // Verifica si el archivo fue descargado en la carpeta ZMusic
+  bool get isDownloaded =>
+      filePath.replaceAll('\\', '/').toLowerCase().contains('/zmusic/');
 
   // Obtener la primera letra del título para el AlphabetListView
   String get firstLetter {
@@ -80,6 +88,7 @@ class MusicTrack {
       'album': album,
       'size': size,
       'isFavorite': isFavorite,
+      'dateAdded': dateAdded,
     };
   }
 
@@ -99,6 +108,8 @@ class MusicTrack {
       album: json['album'] as String?,
       size: json['size'] as int?,
       isFavorite: json['isFavorite'] as bool? ?? false,
+      dateAdded: json['dateAdded'] as int?,
     );
   }
 }
+

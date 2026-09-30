@@ -75,10 +75,22 @@ class _MainAppState extends ConsumerState<MainApp> {
       // Solo nos interesan los eventos cuando se PRESIONA la tecla
       if (event is! KeyDownEvent) return false;
 
-      // Si está escribiendo (validado a través de TypingState desde el TextField),
-      // DEJAMOS PASAR la tecla para que se escriba (retornamos false)
+      // 1. Si está escribiendo explícitamente según TypingState
       if (TypingState.isTyping) {
         return false;
+      }
+
+      // 2. Si el foco actual en Flutter está en un campo de texto editable
+      final primaryFocus = FocusManager.instance.primaryFocus;
+      if (primaryFocus != null && primaryFocus.context != null) {
+        final ctx = primaryFocus.context!;
+        final isTextInput = ctx.widget is EditableText ||
+            ctx.findAncestorWidgetOfExactType<EditableText>() != null ||
+            ctx.findAncestorStateOfType<EditableTextState>() != null ||
+            ctx.findAncestorWidgetOfExactType<TextField>() != null;
+        if (isTextInput) {
+          return false;
+        }
       }
 
       // Si NO está escribiendo, evaluamos qué tecla presionó
@@ -103,6 +115,7 @@ class _MainAppState extends ConsumerState<MainApp> {
       return false;
     });
   }
+
 
   void _setupHomeWidgetListener() {
     HomeWidget.widgetClicked.listen((Uri? uri) {

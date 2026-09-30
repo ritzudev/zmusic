@@ -7,7 +7,9 @@ import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as amr;
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:zmusic/services/invidious_service.dart';
+import 'package:zmusic/services/recent_downloads_service.dart';
 import 'package:zmusic/providers/music_library_provider.dart';
 
 // --- SEARCH PROVIDER ---
@@ -277,49 +279,97 @@ class InvidiousDownloadNotifier extends Notifier<InvidiousDownloadState> {
 
       // Fallback a stream secuencial si falló el modo multi-range
       if (!downloadedWithMultiRange) {
-        final client = http.Client();
-        final request = http.Request('GET', Uri.parse(streamInfo.url));
-        request.headers['User-Agent'] =
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+        bool sequentialSuccess = false;
+        try {
+          final client = http.Client();
+          final request = http.Request('GET', Uri.parse(streamInfo.url));
+          request.headers['User-Agent'] =
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
-        final response = await client.send(request);
+          final response = await client.send(request);
 
-        if (response.statusCode != 200 && response.statusCode != 206) {
-          throw Exception('YouTube denegó acceso a este video (HTTP ${response.statusCode})');
-        }
+          if (response.statusCode != 200 && response.statusCode != 206) {
+            throw Exception('YouTube denegó acceso directo (HTTP ${response.statusCode})');
+          }
 
-        final fileTotal = response.contentLength ?? totalBytes;
-        int downloadedBytes = 0;
-        final fileStream = targetFile.openWrite();
-        int lastEmittedBytes = 0;
-        final emitThreshold = fileTotal > 0
-            ? (fileTotal ~/ 50).clamp(64 * 1024, 256 * 1024)
-            : 64 * 1024;
+          final fileTotal = response.contentLength ?? totalBytes;
+          int downloadedBytes = 0;
+          final fileStream = targetFile.openWrite();
+          int lastEmittedBytes = 0;
+          final emitThreshold = fileTotal > 0
+              ? (fileTotal ~/ 50).clamp(64 * 1024, 256 * 1024)
+              : 64 * 1024;
 
-        await for (final chunk in response.stream) {
-          fileStream.add(chunk);
-          downloadedBytes += chunk.length;
+          await for (final chunk in response.stream) {
+            fileStream.add(chunk);
+            downloadedBytes += chunk.length;
 
-          updateSpeed(downloadedBytes);
+            updateSpeed(downloadedBytes);
 
-          if (downloadedBytes - lastEmittedBytes >= emitThreshold ||
-              downloadedBytes == fileTotal) {
-            lastEmittedBytes = downloadedBytes;
-            if (fileTotal > 0) {
-              final progress = (downloadedBytes / fileTotal).clamp(0.0, 1.0);
-              state = state.copyWith(
-                progress: progress,
-                speed: currentSpeed,
-                message:
-                    'Descargando: ${(downloadedBytes / (1024 * 1024)).toStringAsFixed(1)} MB / ${(fileTotal / (1024 * 1024)).toStringAsFixed(1)} MB',
-              );
+            if (downloadedBytes - lastEmittedBytes >= emitThreshold ||
+                downloadedBytes == fileTotal) {
+              lastEmittedBytes = downloadedBytes;
+              if (fileTotal > 0) {
+                final progress = (downloadedBytes / fileTotal).clamp(0.0, 1.0);
+                state = state.copyWith(
+                  progress: progress,
+                  speed: currentSpeed,
+                  message:
+                      'Descargando: ${(downloadedBytes / (1024 * 1024)).toStringAsFixed(1)} MB / ${(fileTotal / (1024 * 1024)).toStringAsFixed(1)} MB',
+                );
+              }
             }
           }
+
+          await fileStream.flush();
+          await fileStream.close();
+          client.close();
+          sequentialSuccess = true;
+        } catch (seqErr) {
+          debugPrint('DEBUG_INVIDIOUS: Descarga directa falló ($seqErr), intentando YoutubeExplode stream...');
         }
 
-        await fileStream.flush();
-        await fileStream.close();
-        client.close();
+        // Si falló la descarga directa por bloqueo de GoogleVideo, usar YoutubeExplode stream
+        if (!sequentialSuccess) {
+          final yt = YoutubeExplode();
+          try {
+            final manifest = await yt.videos.streamsClient.getManifest(song.id);
+            final audioStreamInfo = manifest.audioOnly.withHighestBitrate();
+            final stream = yt.videos.streamsClient.get(audioStreamInfo);
+            final fileTotal = audioStreamInfo.size.totalBytes;
+            int downloadedBytes = 0;
+            final fileStream = targetFile.openWrite();
+            int lastEmittedBytes = 0;
+            final emitThreshold = fileTotal > 0
+                ? (fileTotal ~/ 50).clamp(64 * 1024, 256 * 1024)
+                : 64 * 1024;
+
+            await for (final chunk in stream) {
+              fileStream.add(chunk);
+              downloadedBytes += chunk.length;
+              updateSpeed(downloadedBytes);
+
+              if (downloadedBytes - lastEmittedBytes >= emitThreshold ||
+                  downloadedBytes == fileTotal) {
+                lastEmittedBytes = downloadedBytes;
+                if (fileTotal > 0) {
+                  final progress = (downloadedBytes / fileTotal).clamp(0.0, 1.0);
+                  state = state.copyWith(
+                    progress: progress,
+                    speed: currentSpeed,
+                    message:
+                        'Descargando: ${(downloadedBytes / (1024 * 1024)).toStringAsFixed(1)} MB / ${(fileTotal / (1024 * 1024)).toStringAsFixed(1)} MB',
+                  );
+                }
+              }
+            }
+
+            await fileStream.flush();
+            await fileStream.close();
+          } finally {
+            yt.close();
+          }
+        }
       }
 
       speedWatch.stop();
@@ -379,6 +429,14 @@ class InvidiousDownloadNotifier extends Notifier<InvidiousDownloadState> {
         status: InvidiousDownloadStatus.completed,
         message: '¡Descarga completada con éxito!',
         completedSongIds: newCompleted,
+      );
+
+      // Registrar en historial de descargas recientes (máx 5, expira cada 24h)
+      await RecentDownloadsService.recordDownload(
+        id: song.id,
+        title: song.title,
+        artist: song.author,
+        filePath: targetFile.path,
       );
 
       // 8. Escaneo Android y refresco de biblioteca en segundo plano

@@ -25,7 +25,7 @@ class WindowService extends WindowListener with TrayListener {
       center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.normal,
+      titleBarStyle: TitleBarStyle.hidden,
       title: "ZMusic",
     );
 

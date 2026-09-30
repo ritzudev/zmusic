@@ -33,7 +33,7 @@ final class YouTubeSearchProvider
   YouTubeSearch create() => YouTubeSearch();
 }
 
-String _$youTubeSearchHash() => r'01f667f0acb2b33714c72c5156857e2d7b449ea1';
+String _$youTubeSearchHash() => r'17e13693e444ac1849a65d759e9c37f6a53683c8';
 
 abstract class _$YouTubeSearch extends $AsyncNotifier<YouTubeSearchResult> {
   FutureOr<YouTubeSearchResult> build();
@@ -87,7 +87,7 @@ final class YouTubeDownloadProvider
   }
 }
 
-String _$youTubeDownloadHash() => r'8e690e74310a54fb50be6c92928b1dedfc821249';
+String _$youTubeDownloadHash() => r'332d26a45b06da0f20c20896ba899998ba5a4465';
 
 abstract class _$YouTubeDownload extends $Notifier<DownloadState?> {
   DownloadState? build();

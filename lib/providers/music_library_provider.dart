@@ -242,6 +242,11 @@ class MusicLibrary extends _$MusicLibrary {
         for (var audioSong in audioSongs) {
           if (!_isMusicFile(audioSong)) continue;
 
+          final rawDate = audioSong.dateAdded ?? audioSong.dateModified;
+          final dateAddedMs = rawDate != null
+              ? (rawDate > 10000000000 ? rawDate : rawDate * 1000)
+              : null;
+
           songs.add(
             MusicTrack(
               id: audioSong.id.toString(),
@@ -253,6 +258,7 @@ class MusicLibrary extends _$MusicLibrary {
               duration: Duration(milliseconds: audioSong.duration ?? 0),
               album: audioSong.album,
               size: audioSong.size,
+              dateAdded: dateAddedMs,
             ),
           );
         }
@@ -388,6 +394,7 @@ class MusicLibrary extends _$MusicLibrary {
                     duration: duration,
                     album: album,
                     size: stats.size,
+                    dateAdded: stats.modified.millisecondsSinceEpoch,
                   ),
                 );
               } catch (e) {

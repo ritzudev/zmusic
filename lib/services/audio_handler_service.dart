@@ -499,18 +499,23 @@ class MusicAudioHandler extends BaseAudioHandler
   /// Establecer la lista de reproducción
   Future<void> setPlaylist(
     List<MusicTrack> tracks, {
-    int initialIndex = 0,
+    int? initialIndex,
     bool playImmediately = false,
   }) async {
+    if (tracks.isEmpty) return;
+
     _originalPlaylist = List.from(tracks); // Guardar orden original
 
     if (_isShuffleEnabled) {
       _playlist = List.from(tracks);
       _playlist.shuffle();
 
-      // Si tenemos un índice inicial, buscar esa canción en la lista mezclada
-      // para empezar por ella, si no, empezar desde el índice 0 de la lista mezclada.
-      if (initialIndex >= 0 && initialIndex < tracks.length) {
+      // Si se pasa un índice explícito (>= 0), empezar por esa canción concreta
+      // y continuar con el resto barajado. Si es null, empezar directamente
+      // por la primera de la lista barajada (_playlist[0]).
+      if (initialIndex != null &&
+          initialIndex >= 0 &&
+          initialIndex < tracks.length) {
         final targetTrack = tracks[initialIndex];
         _currentIndex = _playlist.indexWhere((t) => t.id == targetTrack.id);
         if (_currentIndex == -1) _currentIndex = 0;
@@ -519,7 +524,11 @@ class MusicAudioHandler extends BaseAudioHandler
       }
     } else {
       _playlist = List.from(tracks);
-      _currentIndex = initialIndex;
+      _currentIndex = (initialIndex != null &&
+              initialIndex >= 0 &&
+              initialIndex < tracks.length)
+          ? initialIndex
+          : 0;
     }
 
     // Actualizar la cola

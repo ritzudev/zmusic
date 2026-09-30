@@ -269,6 +269,7 @@ class AudioPlayer extends _$AudioPlayer {
 
   /// Reproducir toda la lista en modo aleatorio
   Future<void> playAllShuffled(List<MusicTrack> tracks) async {
+    if (tracks.isEmpty) return;
     try {
       await _ensureHandlerReady();
 
@@ -277,17 +278,18 @@ class AudioPlayer extends _$AudioPlayer {
       // 1. Activar modo shuffle en el handler
       await _handler!.setShuffleMode(AudioServiceShuffleMode.all);
 
-      // 2. Establecer la playlist (el handler la mezclará automáticamente)
+      // 2. Establecer la playlist con initialIndex null para iniciar con la mezcla aleatoria
       await _handler!.setPlaylist(
         tracks,
-        initialIndex: 0,
+        initialIndex: null,
         playImmediately: true,
       );
 
       state = state.copyWith(
-        playlist: tracks,
+        playlist: _handler!.playlist,
         currentIndex: _handler!.currentIndex,
         currentTrack: _handler!.currentTrack,
+        isShuffleEnabled: true,
         isLoading: false,
       );
     } catch (e) {

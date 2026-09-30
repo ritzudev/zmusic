@@ -7,6 +7,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as amr;
 import 'package:zmusic/providers/music_library_provider.dart';
 import 'package:zmusic/providers/settings_provider.dart';
+import 'package:zmusic/services/recent_downloads_service.dart';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -865,6 +866,14 @@ class YouTubeDownload extends _$YouTubeDownload {
       globalStopwatch.stop();
       _addLog(
         '[COMPLETADO] Descarga y procesamiento finalizados con éxito en ${globalStopwatch.elapsedMilliseconds} ms (~${(globalStopwatch.elapsedMilliseconds / 1000).toStringAsFixed(2)} segundos).',
+      );
+
+      // Registrar en historial de descargas recientes (máx 5, expira en 24h)
+      await RecentDownloadsService.recordDownload(
+        id: video.id,
+        title: title,
+        artist: artist,
+        filePath: ytFile.path,
       );
 
       return ytFile.path;

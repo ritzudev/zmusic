@@ -115,6 +115,52 @@ abstract class _$SelectedCategory extends $Notifier<String> {
   }
 }
 
+@ProviderFor(recentDownloads)
+const recentDownloadsProvider = RecentDownloadsProvider._();
+
+final class RecentDownloadsProvider
+    extends
+        $FunctionalProvider<
+          List<MusicTrack>,
+          List<MusicTrack>,
+          List<MusicTrack>
+        >
+    with $Provider<List<MusicTrack>> {
+  const RecentDownloadsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'recentDownloadsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$recentDownloadsHash();
+
+  @$internal
+  @override
+  $ProviderElement<List<MusicTrack>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  List<MusicTrack> create(Ref ref) {
+    return recentDownloads(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<MusicTrack> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<MusicTrack>>(value),
+    );
+  }
+}
+
+String _$recentDownloadsHash() => r'0686a2d7dcc7d57eca588ec7603086fa36777e33';
+
 @ProviderFor(filteredSongs)
 const filteredSongsProvider = FilteredSongsProvider._();
 
@@ -159,4 +205,4 @@ final class FilteredSongsProvider
   }
 }
 
-String _$filteredSongsHash() => r'8a6f655d47896adf0396ad601537f7b259689238';
+String _$filteredSongsHash() => r'9a36fc76e477c4598bc4ab86cbe009c4294ded8b';
