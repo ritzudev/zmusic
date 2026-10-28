@@ -13,9 +13,8 @@ class MainActivity: AudioServiceActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Solicitud de exclusión de batería desactivada por defecto
-        // Si experimentas cierres después de 1 hora, descomenta la siguiente línea:
-        // requestBatteryOptimizationExemption()
+        // Solicitar exclusión de optimización de batería para evitar que Android mate el servicio
+        requestBatteryOptimizationExemption()
     }
     
     private fun requestBatteryOptimizationExemption() {

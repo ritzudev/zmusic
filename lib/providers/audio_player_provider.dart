@@ -19,11 +19,11 @@ Future<MusicAudioHandler> audioHandler(Ref ref) async {
       androidNotificationChannelName: 'ZMusic Playback',
       androidNotificationChannelDescription:
           'Controles de reproducción de música',
-      androidNotificationOngoing: true,
+      androidNotificationOngoing: false,
       androidShowNotificationBadge: true,
       androidNotificationIcon: 'mipmap/ic_launcher',
       notificationColor: const Color.fromARGB(255, 30, 154, 195),
-      androidStopForegroundOnPause: true,
+      androidStopForegroundOnPause: false,
       androidNotificationClickStartsActivity: true,
       preloadArtwork: true,
       artDownscaleWidth: 256,

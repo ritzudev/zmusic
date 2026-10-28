@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:home_widget/home_widget.dart';
@@ -37,6 +38,12 @@ class MusicAudioHandler extends BaseAudioHandler
   String? _placeholderPath;
   Uint8List? _placeholderBytes;
 
+  // Control de interrupciones de audio y optimizaciÃ³n de widget
+  bool _playInterrupted = false;
+  String? _lastWidgetTrackId;
+  bool? _lastWidgetPlaying;
+  bool _isUpdatingWidget = false;
+
   MusicAudioHandler() {
     if (Platform.isWindows) {
       _mkPlayer = mk.Player();
@@ -46,6 +53,56 @@ class MusicAudioHandler extends BaseAudioHandler
     _preparePlaceholder();
     if (Platform.isWindows) {
       _initSMTC();
+    }
+  }
+
+  Future<void> _initAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+
+      // Manejar interrupciones (ej: videos en Facebook/Instagram/TikTok, llamadas)
+      _subscriptions.add(
+        session.interruptionEventStream.listen((event) async {
+          if (event.begin) {
+            // Otra app tomÃ³ el foco de audio
+            switch (event.type) {
+              case AudioInterruptionType.duck:
+              case AudioInterruptionType.pause:
+              case AudioInterruptionType.unknown:
+                final isPlayingNow = Platform.isWindows
+                    ? (_mkPlayer?.state.playing ?? false)
+                    : _player.playing;
+                if (isPlayingNow) {
+                  _playInterrupted = true;
+                  await pause(fromInterruption: true);
+                }
+                break;
+            }
+          } else {
+            // La otra app soltÃ³ el foco de audio (ej: usuario scrolleÃ³ en FB y pasÃ³ el video)
+            switch (event.type) {
+              case AudioInterruptionType.duck:
+              case AudioInterruptionType.pause:
+              case AudioInterruptionType.unknown:
+                if (_playInterrupted) {
+                  _playInterrupted = false;
+                  await play();
+                }
+                break;
+            }
+          }
+        }),
+      );
+
+      // Pausar automÃ¡ticamente si se desconectan los auriculares (Bluetooth / Jack)
+      _subscriptions.add(
+        session.becomingNoisyEventStream.listen((_) {
+          pause();
+        }),
+      );
+    } catch (e) {
+      print('Error al configurar AudioSession: ');
     }
   }
 
@@ -116,6 +173,10 @@ class MusicAudioHandler extends BaseAudioHandler
   }
 
   void _init() {
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      _initAudioSession();
+    }
     // Escuchar cambios en el estado de reproducción
     _subscriptions.add(
       _player.playbackEventStream.listen((event) {
@@ -464,39 +525,61 @@ class MusicAudioHandler extends BaseAudioHandler
     final track = currentTrack;
     if (track == null) return;
 
-    await HomeWidget.saveWidgetData<String>('title', track.title);
-    await HomeWidget.saveWidgetData<String>('artist', track.artist);
-    await HomeWidget.saveWidgetData<bool>('is_playing', _player.playing);
+    final isPlaying = _player.playing;
+    final trackChanged = _lastWidgetTrackId != track.id;
+    final playingChanged = _lastWidgetPlaying != isPlaying;
 
-    // Guardar carátula para el widget
+    // Si ni la pista ni el estado cambiaron, evitar trabajo innecesario
+    if (!trackChanged && !playingChanged) return;
+    if (_isUpdatingWidget) return;
+    _isUpdatingWidget = true;
+
     try {
-      final artworkBytes = await _audioQuery.queryArtwork(
-        track.albumId ?? track.songId,
-        track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
-        format: ArtworkFormat.JPEG,
-        size: 500,
-      );
+      if (trackChanged) {
+        _lastWidgetTrackId = track.id;
+        await HomeWidget.saveWidgetData<String>('title', track.title);
+        await HomeWidget.saveWidgetData<String>('artist', track.artist);
 
-      if (artworkBytes != null && artworkBytes.isNotEmpty) {
-        final directory = await getTemporaryDirectory();
-        final artworkPath = '${directory.path}/widget_artwork.jpg';
-        final file = File(artworkPath);
-        await file.writeAsBytes(artworkBytes);
-        await HomeWidget.saveWidgetData<String>('artwork_path', artworkPath);
-      } else {
-        await HomeWidget.saveWidgetData<String>('artwork_path', null);
+        // Guardar carÃ¡tula para el widget SOLO cuando cambia la canciÃ³n
+        try {
+          final artworkBytes = await _audioQuery.queryArtwork(
+            track.albumId ?? track.songId,
+            track.albumId != null ? ArtworkType.ALBUM : ArtworkType.AUDIO,
+            format: ArtworkFormat.JPEG,
+            size: 500,
+          );
+
+          if (artworkBytes != null && artworkBytes.isNotEmpty) {
+            final directory = await getTemporaryDirectory();
+            final artworkPath = '${directory.path}/widget_artwork.jpg';
+            final file = File(artworkPath);
+            await file.writeAsBytes(artworkBytes);
+            await HomeWidget.saveWidgetData<String>('artwork_path', artworkPath);
+          } else {
+            await HomeWidget.saveWidgetData<String>('artwork_path', null);
+          }
+        } catch (e) {
+          print('Error al guardar artwork para el widget: $e');
+        }
       }
-    } catch (e) {
-      print('Error al guardar artwork para el widget: $e');
-    }
 
-    await HomeWidget.updateWidget(
-      name: 'HomeScreenWidgetProvider',
-      androidName: 'HomeScreenWidgetProvider',
-    );
+      if (playingChanged || trackChanged) {
+        _lastWidgetPlaying = isPlaying;
+        await HomeWidget.saveWidgetData<bool>('is_playing', isPlaying);
+      }
+
+      await HomeWidget.updateWidget(
+        name: 'HomeScreenWidgetProvider',
+        androidName: 'HomeScreenWidgetProvider',
+      );
+    } catch (e) {
+      print('Error al actualizar widget: $e');
+    } finally {
+      _isUpdatingWidget = false;
+    }
   }
 
-  /// Establecer la lista de reproducción
+  /// Establecer la lista de reproducciÃ³n
   Future<void> setPlaylist(
     List<MusicTrack> tracks, {
     int? initialIndex,
@@ -625,6 +708,7 @@ class MusicAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> play() async {
+    _playInterrupted = false;
     try {
       if (Platform.isWindows) {
         await _mkPlayer?.play();
@@ -636,7 +720,10 @@ class MusicAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> pause() async {
+  Future<void> pause({bool fromInterruption = false}) async {
+    if (!fromInterruption) {
+      _playInterrupted = false;
+    }
     if (Platform.isWindows) {
       await _mkPlayer?.pause();
     } else {

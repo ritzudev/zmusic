@@ -21,7 +21,7 @@ class WindowService extends WindowListener with TrayListener {
     // Configurar opciones de ventana (Tamaño por defecto)
     WindowOptions windowOptions = const WindowOptions(
       size: Size(1200, 800),
-      minimumSize: Size(900, 600),
+      minimumSize: Size(380, 550),
       center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,

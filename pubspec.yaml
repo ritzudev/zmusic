@@ -1,7 +1,7 @@
 name: zmusic
 description: "A new Flutter project."
 publish_to: "none"
-version: 0.1.30
+version: 0.1.31
 
 environment:
   sdk: ^3.9.2
@@ -19,6 +19,7 @@ dependencies:
   path_provider: ^2.1.5
   just_audio: ^0.9.42
   just_audio_windows: ^0.2.1
+  audio_session: ^0.1.25
   smtc_windows: ^1.1.0
   windows_taskbar: ^1.1.2
   window_manager: ^0.4.3
@@ -78,6 +79,6 @@ msix_config:
   display_name: Z Music
   publisher_display_name: Ritzu
   identity_name: com.ritzu.zmusic
-  msix_version: 0.1.0.43
+  msix_version: 0.1.0.44
   logo_path: assets/zmusic.png
   capabilities: internetClient, musicLibrary
